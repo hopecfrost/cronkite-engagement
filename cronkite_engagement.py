@@ -27,8 +27,8 @@ from email.mime.text import MIMEText
 from datetime import datetime, timedelta
 
 # ── Credentials ────────────────────────────────────────────────────────────────
-PARSELY_KEY    = os.getenv("PARSELY_KEY",    "cronkitenews.azpbs.org")
-PARSELY_SECRET = os.getenv("PARSELY_SECRET", "tAytVAdJCyLdFHatqOOHLVXTrdHpUm5kQusX8ZWzHoA")
+PARSELY_KEY    = os.getenv("PARSELY_KEY")    or "cronkitenews.azpbs.org"
+PARSELY_SECRET = os.getenv("PARSELY_SECRET") or "tAytVAdJCyLdFHatqOOHLVXTrdHpUm5kQusX8ZWzHoA"
 BASE_URL = "https://api.parsely.com/v2"
 
 # ── Email config ───────────────────────────────────────────────────────────────
