@@ -1,0 +1,41 @@
+name: Weekly Engagement Report
+
+on:
+  schedule:
+    # Every Monday at 9:00 AM UTC (2 AM Arizona time)
+    - cron: '0 9 * * 1'
+  workflow_dispatch:
+    # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  generate-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run engagement script
+        env:
+          PARSELY_KEY:    ${{ secrets.PARSELY_KEY }}
+          PARSELY_SECRET: ${{ secrets.PARSELY_SECRET }}
+          SMTP_EMAIL:     ${{ secrets.SMTP_EMAIL }}
+          SMTP_PASSWORD:  ${{ secrets.SMTP_PASSWORD }}
+        run: python cronkite_engagement.py
+
+      - name: Deploy index.html to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          include_files: index.html
+          publish_branch: gh-pages
+          commit_message: "Weekly report - ${{ github.run_id }}"
