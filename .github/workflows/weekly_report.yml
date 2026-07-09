@@ -31,6 +31,9 @@ jobs:
           SMTP_PASSWORD:  ${{ secrets.SMTP_PASSWORD }}
         run: python cronkite_engagement.py
 
+     - name: Rename to index.html
+        run: cp cronkite_report_*.html index.html 
+
      - name: Deploy index.html to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
