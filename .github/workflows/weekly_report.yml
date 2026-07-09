@@ -31,13 +31,15 @@ jobs:
           SMTP_PASSWORD:  ${{ secrets.SMTP_PASSWORD }}
         run: python cronkite_engagement.py
 
-     - name: Rename to index.html
-        run: cp cronkite_report_*.html index.html 
+- name: Prepare output folder
+        run: |
+          mkdir -p dist
+          cp cronkite_report_*.html dist/index.html
 
-     - name: Deploy index.html to GitHub Pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
+          publish_dir: ./dist
           publish_branch: gh-pages
           commit_message: "Weekly report - ${{ github.run_id }}"
