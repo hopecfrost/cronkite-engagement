@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cronkite Sports Bureau &mdash; Engagement Report</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#0d1117;color:#c9d1d9;height:100vh;overflow:hidden;display:flex;flex-direction:column}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.bureau{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#8b949e}
+.report-title{font-size:20px;font-weight:700;color:#f0f6fc;margin:3px 0}
+.daterange{font-size:12px;color:#8b949e}
+.totals{display:flex;gap:28px}
+.total{text-align:right}
+.total-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e}
+.total-value{font-size:22px;font-weight:800;color:#58a6ff}
+.layout{display:grid;grid-template-columns:1fr 400px;flex:1;overflow:hidden}
+.table-panel{overflow-y:auto;border-right:1px solid #30363d}
+table{width:100%;border-collapse:collapse}
+thead th{position:sticky;top:0;background:#161b22;padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;border-bottom:1px solid #30363d;z-index:1;white-space:nowrap}
+tbody tr{cursor:pointer;border-bottom:1px solid #21262d;transition:background .12s}
+tbody tr:hover{background:#1c2128}
+tbody tr.selected{background:#1a3354 !important;border-left:3px solid #58a6ff}
+td{padding:9px 12px;font-size:13px}
+td.rk{color:#8b949e;font-size:11px;width:30px;padding-right:4px}
+td.sc{font-weight:800;width:44px}
+td.vw{color:#c9d1d9;width:62px;text-align:right}
+td.rc{width:56px;text-align:right}
+td.sec{color:#8b949e;font-size:11px;width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
+td.ttl{color:#c9d1d9;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.right-panel{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:#0d1117}
+.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px}
+.card-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;margin-bottom:10px}
+.story-section{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;margin-bottom:5px}
+.story-title{font-size:14px;font-weight:600;color:#f0f6fc;line-height:1.4;margin-bottom:12px}
+.score-row{display:flex;align-items:center;gap:14px}
+.score-circle{width:68px;height:68px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid;flex-shrink:0}
+.score-num{font-size:22px;font-weight:800;line-height:1}
+.score-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;opacity:.7}
+.score-meta{flex:1}
+.bench{display:inline-block;padding:3px 9px;border-radius:4px;font-size:12px;font-weight:700;margin-bottom:5px}
+.bench.pos{background:#1a3f2a;color:#3fb950}
+.bench.neg{background:#3d1212;color:#f85149}
+.rank-text{font-size:12px;color:#8b949e}
+.metric-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.metric-box{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px;text-align:center}
+.metric-box .lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;margin-bottom:3px}
+.metric-box .val{font-size:20px;font-weight:800}
+.metric-box .sub{font-size:10px;color:#8b949e;margin-top:2px}
+.empty{text-align:center;padding:48px 20px;color:#8b949e}
+.empty h3{font-size:15px;color:#c9d1d9;margin-bottom:8px}
+.empty p{font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="bureau">Cronkite Sports Bureau</div>
+    <div class="report-title">Weekly Engagement Report</div>
+    <div class="daterange">Jul 02 &ndash; Jul 09, 2026</div>
+  </div>
+  <div class="totals">
+    <div class="total"><div class="total-label">Total Views</div><div class="total-value">17,814</div></div>
+    <div class="total"><div class="total-label">Avg Recirc</div><div class="total-value">3.7%</div></div>
+    <div class="total"><div class="total-label">Avg Score</div><div class="total-value">38</div></div>
+  </div>
+</header>
+<div class="layout">
+  <div class="table-panel">
+    <table>
+      <thead><tr>
+        <th>#</th><th>Score</th><th style="text-align:right">Views</th>
+        <th style="text-align:right">Recirc</th><th>Section</th><th>Title</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+  <div class="right-panel" id="right">
+    <div class="empty"><h3>Select a story</h3><p>Click any row to see its engagement profile and charts.</p></div>
+  </div>
+</div>
+<script>
+const DATA = [{"rank": 1, "title": "Modern pitching forces MLB Hall of Fame voters to rethink greatness", "section": "Sports", "views": 95, "recirc": 21.05, "score": 66, "bench_diff": 1070, "reach": 51, "depth": 100, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/02/hall-of-fame-voters-debate-starting-pitcher-standards/?itm_source=parsely-api"}, {"rank": 2, "title": "Fireworks stands are Fourth of July mainstays, but the people running them might", "section": "Culture", "views": 137, "recirc": 9.49, "score": 65, "bench_diff": 458, "reach": 56, "depth": 95, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/01/fourth-of-july-fireworks-stands/?itm_source=parsely-api"}, {"rank": 3, "title": "Sowing the seeds: The 1994 USMNT laid the groundwork for this 2026 World Cup opp", "section": "Sports", "views": 91, "recirc": 14.29, "score": 65, "bench_diff": 694, "reach": 51, "depth": 100, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/01/sowing-the-seeds-the-1994-usmnt-laid-the-groundwork-for-this-2026-world-cup-opportunity/?itm_source=parsely-api"}, {"rank": 4, "title": "How burrowing owls found safe harbor at a different kind of farm", "section": "Sustainability", "views": 121, "recirc": 9.09, "score": 63, "bench_diff": 355, "reach": 54, "depth": 91, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/arizona-solar-farm-gives-burrowing-owls-new-home/?itm_source=parsely-api"}, {"rank": 5, "title": "Influx of Venezuelans sorely tests Peru\u2019s economy and labor market", "section": "Venezuela", "views": 50, "recirc": 10.0, "score": 63, "bench_diff": 488, "reach": 44, "depth": 100, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2019/05/13/peru-labor/?itm_source=parsely-api"}, {"rank": 6, "title": "Arizona faces 77% cut in share of Colorado River as states remain deadlocked ove", "section": "Sustainability", "views": 356, "recirc": 5.9, "score": 53, "bench_diff": 195, "reach": 66, "depth": 59, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/09/colorado-river-stalemate-arizona-water/?itm_source=parsely-api"}, {"rank": 7, "title": "Seeing red: FIFA\u2019s decision to reinstate Balogun sparked World Cup debate before", "section": "Sports", "views": 269, "recirc": 5.95, "score": 52, "bench_diff": 230, "reach": 63, "depth": 59, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/06/fifa-reinstate-folarin-balogun-world-cup-2026/?itm_source=parsely-api"}, {"rank": 8, "title": "The run for political office: The Jay Feely story", "section": "Politics & Policy", "views": 147, "recirc": 6.12, "score": 50, "bench_diff": 283, "reach": 56, "depth": 61, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/01/former-cardinals-jay-feely-trump-supported-congress-bid/?itm_source=parsely-api"}, {"rank": 9, "title": "Trump\u2019s Great American State Fair: Modest crowds, $23 turkey legs, MAHA and cont", "section": "Politics & Policy", "views": 595, "recirc": 4.54, "score": 49, "bench_diff": 184, "reach": 72, "depth": 45, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/30/trump-state-fair/?itm_source=parsely-api"}, {"rank": 10, "title": "Why Phoenix chose not to host 2026 FIFA World Cup matches", "section": "Sports", "views": 6943, "recirc": 1.86, "score": 48, "bench_diff": 3, "reach": 100, "depth": 19, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/phoenix-2026-world-cup-host-city-decision/?itm_source=parsely-api"}, {"rank": 11, "title": "Advocates alarmed as DOJ backs states challenging mandate to keep people with me", "section": "Health", "views": 62, "recirc": 6.45, "score": 48, "bench_diff": 240, "reach": 47, "depth": 65, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/09/doj-memo-disability-institutionalization/?itm_source=parsely-api"}, {"rank": 12, "title": "Priced out: Rising cost of youth soccer continues to stunt sport\u2019s growth in US", "section": "Borderlands", "views": 103, "recirc": 5.83, "score": 47, "bench_diff": 243, "reach": 52, "depth": 58, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2025/12/04/rising-youth-soccer-costs-u-s/?itm_source=parsely-api"}, {"rank": 13, "title": "Buc-ee\u2019s is finally open in Goodyear. A nearby small business prepares for its i", "section": "Money", "views": 1223, "recirc": 2.78, "score": 45, "bench_diff": 64, "reach": 80, "depth": 28, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/24/goodyear-hot-sauce-business-prepares-buc-ees-impact/?itm_source=parsely-api"}, {"rank": 14, "title": "Jerry Colangelo aims to bring NBA expansion franchise to Las Vegas", "section": "Sports", "views": 545, "recirc": 3.67, "score": 45, "bench_diff": 104, "reach": 71, "depth": 37, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/las-vegas-nba-expansion-jerry-colangelo/?itm_source=parsely-api"}, {"rank": 15, "title": "Desalinated Pacific Ocean water won\u2019t be cheap but Arizona is scrambling to offs", "section": "Sustainability", "views": 688, "recirc": 2.91, "score": 43, "bench_diff": 45, "reach": 74, "depth": 29, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/25/water-swap-desalination-arizona/?itm_source=parsely-api"}, {"rank": 16, "title": "Big 12 media days: ASU using World Cup experience as showcase for Union Jack Cla", "section": "Sports", "views": 141, "recirc": 4.26, "score": 42, "bench_diff": 136, "reach": 56, "depth": 43, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/07/asu-football-big-12-media-days/?itm_source=parsely-api"}, {"rank": 17, "title": "Michael Soroka regains form with Diamondbacks before injury", "section": "Sports", "views": 246, "recirc": 3.66, "score": 41, "bench_diff": 103, "reach": 62, "depth": 37, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/07/arizona-diamondbacks-michael-soroka-regains-form/?itm_source=parsely-api"}, {"rank": 18, "title": "Veterans see hypocrisy in military tributes as benefit cuts take hold", "section": "Politics & Policy", "views": 244, "recirc": 3.69, "score": 41, "bench_diff": 131, "reach": 62, "depth": 37, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/veterans-cuts-trump/?itm_source=parsely-api"}, {"rank": 19, "title": "New Arizona guidelines aim to protect workers from heat, but fall short of enfor", "section": "Health", "views": 145, "recirc": 4.14, "score": 41, "bench_diff": 118, "reach": 56, "depth": 41, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/04/20/arizona-workplace-heat-safety-guidelines/?itm_source=parsely-api"}, {"rank": 20, "title": "Phoenix libraries use dinosaurs and prizes to fight a national reading slump", "section": "Education", "views": 61, "recirc": 4.92, "score": 41, "bench_diff": 189, "reach": 46, "depth": 49, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/01/phoenix-libraries-reading-room-boom-summer-programs/?itm_source=parsely-api"}, {"rank": 21, "title": "Trump backs Biggs for AZ governor, but threatened to end his career during McCar", "section": "Election 2026", "views": 514, "recirc": 2.72, "score": 40, "bench_diff": 60, "reach": 71, "depth": 27, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/25/biggs-trump-mccarthy-speaker-clash/?itm_source=parsely-api"}, {"rank": 22, "title": "ICE moves ahead with plan to convert Surprise warehouse for immigrant detention,", "section": "Borderlands", "views": 201, "recirc": 3.48, "score": 40, "bench_diff": 105, "reach": 60, "depth": 35, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/01/ice-warehouse-surprise-arizona-delay/?itm_source=parsely-api"}, {"rank": 23, "title": "Arizona\u2019s \u2018QAnon Shaman\u2019 denounces \u2018slush fund\u2019 for Jan. 6 rioters, calls deal t", "section": "Politics & Policy", "views": 92, "recirc": 4.35, "score": 40, "bench_diff": 172, "reach": 51, "depth": 43, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/05/20/qanon-shaman-trump-slush-fund/?itm_source=parsely-api"}, {"rank": 24, "title": "States can ban transgender athletes from girls sports, Supreme Court says", "section": "Politics & Policy", "views": 66, "recirc": 4.55, "score": 39, "bench_diff": 184, "reach": 47, "depth": 45, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/30/supreme-court-upholds-transgender-athletes-ban/?itm_source=parsely-api"}, {"rank": 25, "title": "GOP primary pits Trump-backed Biggs and \u2018free-market conservative\u2019 Schweikert fo", "section": "Election 2026", "views": 196, "recirc": 3.06, "score": 38, "bench_diff": 80, "reach": 60, "depth": 31, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/02/19/arizona-governor-republican-primary-biggs-schweikert/?itm_source=parsely-api"}, {"rank": 26, "title": "Drug cartels adapt as US boat strikes fail to curb cocaine, fentanyl supply", "section": "National Security", "views": 196, "recirc": 3.06, "score": 38, "bench_diff": 70, "reach": 60, "depth": 31, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/30/drug-cartels-adapt-as-us-boat-strikes-fail-to-curb-cocaine-fentanyl-supply/?itm_source=parsely-api"}, {"rank": 27, "title": "Even without Caitlin Clark, heated rematch between Mercury, Indiana Fever expect", "section": "Sports", "views": 1043, "recirc": 1.25, "score": 37, "bench_diff": -31, "reach": 79, "depth": 12, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/phoenix-mercury-regroup-before-indiana-fever-rematch/?itm_source=parsely-api"}, {"rank": 28, "title": "Investing in the future: Suns bring back Williams, Goodwin, Gillespie", "section": "Sports", "views": 157, "recirc": 3.18, "score": 37, "bench_diff": 77, "reach": 57, "depth": 32, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/phoenix-suns-bring-back-williams-goodwin-gillespie/?itm_source=parsely-api"}, {"rank": 29, "title": "Arizona moves forward with HCR 2003 as Supreme Court upholds state bans on trans", "section": "Social Justice", "views": 83, "recirc": 3.61, "score": 36, "bench_diff": 72, "reach": 50, "depth": 36, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/30/arizona-hcr-2003-scotus-state-bans-transgender-athletes/?itm_source=parsely-api"}, {"rank": 30, "title": "Mark Lamb scandal tests Trump\u2019s reluctance to rescind endorsements", "section": "Politics & Policy", "views": 679, "recirc": 1.33, "score": 35, "bench_diff": -17, "reach": 74, "depth": 13, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/17/lamb-scandal-trump-endorsement/?itm_source=parsely-api"}, {"rank": 31, "title": "Federal plan to divide drought-stricken Colorado River water brings flood of pus", "section": "Sustainability", "views": 138, "recirc": 2.9, "score": 35, "bench_diff": 45, "reach": 56, "depth": 29, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/03/25/colorado-river-water-federal-plan-pushback/?itm_source=parsely-api"}, {"rank": 32, "title": "Trump deal gives Iran $100s of billions more than Obama nuclear pact he slammed,", "section": "National Security", "views": 754, "recirc": 0.8, "score": 34, "bench_diff": -56, "reach": 75, "depth": 8, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/29/trump-iran-deal-assess/?itm_source=parsely-api"}, {"rank": 33, "title": "Can Stanton avoid the fate of other House Democrats ousted by left-wing insurgen", "section": "Politics & Policy", "views": 230, "recirc": 2.17, "score": 34, "bench_diff": 36, "reach": 61, "depth": 22, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/congress-democrats-progressives-ariz/?itm_source=parsely-api"}, {"rank": 34, "title": "Immigrant families lose food aid as Trump restrictions take hold", "section": "Borderlands", "views": 59, "recirc": 3.39, "score": 34, "bench_diff": 99, "reach": 46, "depth": 34, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/25/immigrants-food-stamp-cuts/?itm_source=parsely-api"}, {"rank": 35, "title": "Cardinals DL Darius Robinson embraces fresh mindset entering Year 3", "section": "Sports", "views": 71, "recirc": 2.82, "score": 32, "bench_diff": 56, "reach": 48, "depth": 28, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/08/cardinals-darius-robinson-eyes-breakout-third-season/?itm_source=parsely-api"}, {"rank": 36, "title": "After disappointing World Cup loss, Turkey federation president goes on defensiv", "section": "Sports", "views": 70, "recirc": 2.86, "score": 32, "bench_diff": 59, "reach": 48, "depth": 29, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/16/turkey-disappointing-loss-world-cup-2026/?itm_source=parsely-api"}, {"rank": 37, "title": "Sembrando la semilla: El USMNT de 1994 prepar\u00f3 el camino para la oportunidad del", "section": "Noticias", "views": 46, "recirc": 2.17, "score": 27, "bench_diff": 28, "reach": 43, "depth": 22, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/07/01/legado-mundial-1994-usmnt-2026/?itm_source=parsely-api"}, {"rank": 38, "title": "Fiscal impact of immigrants cuts both ways \u2013 education, health care and some wel", "section": "Politics", "views": 70, "recirc": 1.43, "score": 26, "bench_diff": -5, "reach": 48, "depth": 14, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2025/03/31/immigrants-without-legal-status-taxpayer-cost/?itm_source=parsely-api"}, {"rank": 39, "title": "Born in the USA? Supreme Court says you\u2019re a citizen, rejecting Trump effort to ", "section": "Borderlands", "views": 68, "recirc": 1.47, "score": 26, "bench_diff": -13, "reach": 48, "depth": 15, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/06/30/birthright-citizenship-scotus-ruling/?itm_source=parsely-api"}, {"rank": 40, "title": "Court lets stand death sentence against man in insurance policy killing", "section": "Social Justice", "views": 60, "recirc": 1.67, "score": 26, "bench_diff": -21, "reach": 46, "depth": 17, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2018/10/12/court-lets-stand-death-sentence-against-man-in-insurance-policy-killing/?itm_source=parsely-api"}, {"rank": 41, "title": "The elite escape: Athletes carve out peace, privacy and luxury in Paradise Valle", "section": "Sports", "views": 58, "recirc": 1.72, "score": 26, "bench_diff": -4, "reach": 46, "depth": 17, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2025/06/27/athletes-luxury-real-estate-arizona-paradise-valley/?itm_source=parsely-api"}, {"rank": 42, "title": "Amid rising tensions between world powers, the Panama Canal is still a vital res", "section": "Politics", "views": 88, "recirc": 1.14, "score": 25, "bench_diff": -24, "reach": 51, "depth": 11, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2025/05/12/panama-canal-vital-world-trade-caught-between-united-states-china/?itm_source=parsely-api"}, {"rank": 43, "title": "Trump clash, fundraising boom elevate Mark Kelly\u2019s 2028 presidential prospects", "section": "Politics & Policy", "views": 167, "recirc": 0.0, "score": 23, "bench_diff": -100, "reach": 58, "depth": 0, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/02/17/trump-clash-fundraising-boom-elevate-mark-kellys-2028-presidential-prospects/?itm_source=parsely-api"}, {"rank": 44, "title": "Crossover success: Mercury guard Sophie Cunningham scores big as Phoenix Suns an", "section": "Sports", "views": 136, "recirc": 0.0, "score": 22, "bench_diff": -100, "reach": 56, "depth": 0, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2024/02/08/phoenix-mercury-sophie-cunningham-broadcasting-suns-games/?itm_source=parsely-api"}, {"rank": 45, "title": "No Labels candidate and former ASU quarterback Hugh Lytle can stay on governor b", "section": "Politics & Policy", "views": 77, "recirc": 0.0, "score": 20, "bench_diff": -100, "reach": 49, "depth": 0, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/05/05/former-asu-quarterback-hugh-lytle-governor-ballot/?itm_source=parsely-api"}, {"rank": 46, "title": "As Costa Rica welcomes record-breaking number of tourists, the county is battlin", "section": "Social Justice", "views": 55, "recirc": 0.0, "score": 18, "bench_diff": -100, "reach": 45, "depth": 0, "search": 0, "search_views": 0, "url": "https://cronkitenews.azpbs.org/2024/10/18/costa-rica-face-record-breaking-levels-crime-tourists/?itm_source=parsely-api"}, {"rank": 47, "title": "Behind Japan\u2019s record-low homelessness count, a hidden population grows", "section": "Borderlands", "views": 49, "recirc": 0.0, "score": 18, "bench_diff": -100, "reach": 44, "depth": 0, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/04/29/japan-hidden-homeless/?itm_source=parsely-api"}, {"rank": 48, "title": "2026 World Cup primer: What to know ahead of the globe\u2019s biggest sporting event", "section": "Sports", "views": 49, "recirc": 0.0, "score": 18, "bench_diff": -100, "reach": 44, "depth": 0, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/04/01/fifa-world-cup-2026-guide/?itm_source=parsely-api"}, {"rank": 49, "title": "Charlie Kirk bonded with a Serbian community through basketball \u2013 then was honor", "section": "Politics & Policy", "views": 41, "recirc": 0.0, "score": 17, "bench_diff": -100, "reach": 42, "depth": 0, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2025/12/16/charlie-kirk-basketball-serbia/?itm_source=parsely-api"}, {"rank": 50, "title": "How Jeffrey Epstein used a sports blog to suppress media reports about his sex o", "section": "Government", "views": 39, "recirc": 0.0, "score": 17, "bench_diff": -100, "reach": 41, "depth": 0, "search": 0, "search_views": 0, "url": "http://cronkitenews.azpbs.org/2026/02/26/jeffrey-epstein-sports-blog-suppress-media/?itm_source=parsely-api"}];
+let radar = null, scatter = null;
+
+function col(score){return score>=60?'#3fb950':score>=40?'#d29922':'#8b949e'}
+function rcol(r){return r>=8?'#3fb950':r>=4?'#d29922':'#8b949e'}
+
+function buildTable(){
+  const tb = document.getElementById('tbody');
+  DATA.forEach((a,i)=>{
+    const tr = document.createElement('tr');
+    const c = col(a.score), rc = rcol(a.recirc);
+    tr.innerHTML =
+      `<td class="rk">${a.rank}</td>`+
+      `<td class="sc" style="color:${c}">${a.score}</td>`+
+      `<td class="vw">${a.views.toLocaleString()}</td>`+
+      `<td class="rc" style="color:${rc}">${a.recirc.toFixed(1)}%</td>`+
+      `<td class="sec" title="${a.section}">${a.section}</td>`+
+      `<td class="ttl" title="${a.title}">${i===0?'&#9733; ':''}${a.title}</td>`;
+    tr.onclick = ()=>select(i);
+    tb.appendChild(tr);
+  });
+}
+
+function select(idx){
+  document.querySelectorAll('tbody tr').forEach((r,i)=>r.classList.toggle('selected',i===idx));
+  const a = DATA[idx];
+  const c = col(a.score);
+  const bs = a.bench_diff>=0?'+'+a.bench_diff+'%':a.bench_diff+'%';
+  const bcls = a.bench_diff>=0?'pos':'neg';
+
+  document.getElementById('right').innerHTML =
+    `<div class="card">
+      <div class="story-section">${a.section}</div>
+      <div class="story-title">${a.title}</div>
+      <div class="score-row">
+        <div class="score-circle" style="border-color:${c};color:${c}">
+          <div class="score-num">${a.score}</div>
+          <div class="score-lbl">score</div>
+        </div>
+        <div class="score-meta">
+          <div class="bench ${bcls}">${bs} vs ${a.section} avg</div>
+          <div class="rank-text">Rank #${a.rank} of ${DATA.length} this week</div>
+        </div>
+      </div>
+    </div>
+    <div class="metric-grid">
+      <div class="metric-box">
+        <div class="lbl">Reach</div>
+        <div class="val" style="color:#58a6ff">${a.reach}</div>
+        <div class="sub">${a.views.toLocaleString()} views</div>
+      </div>
+      <div class="metric-box">
+        <div class="lbl">Depth</div>
+        <div class="val" style="color:#3fb950">${a.depth}</div>
+        <div class="sub">${a.recirc.toFixed(1)}% recirc</div>
+      </div>
+      <div class="metric-box">
+        <div class="lbl">Search</div>
+        <div class="val" style="color:#d29922">${a.search}</div>
+        <div class="sub">${a.search_views} search views</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-label">Engagement Profile</div>
+      <canvas id="radarChart" height="210"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-label">Views vs. Recirculation &mdash; All Stories This Week</div>
+      <canvas id="scatterChart" height="190"></canvas>
+    </div>`;
+
+  buildRadar(a);
+  buildScatter(idx);
+}
+
+function buildRadar(a){
+  if(radar){radar.destroy();radar=null;}
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  radar = new Chart(ctx,{
+    type:'radar',
+    data:{
+      labels:['Reach','Depth','Search Pull'],
+      datasets:[{
+        label:'This Story',
+        data:[a.reach,a.depth,a.search],
+        backgroundColor:'rgba(88,166,255,0.12)',
+        borderColor:'#58a6ff',
+        pointBackgroundColor:'#58a6ff',
+        pointBorderColor:'#0d1117',
+        borderWidth:2,pointRadius:5
+      }]
+    },
+    options:{
+      responsive:true,
+      plugins:{legend:{display:false}},
+      scales:{r:{
+        min:0,max:100,
+        ticks:{display:false},
+        grid:{color:'#30363d'},
+        angleLines:{color:'#30363d'},
+        pointLabels:{color:'#c9d1d9',font:{size:12,weight:'600'}}
+      }}
+    }
+  });
+}
+
+function buildScatter(selIdx){
+  if(scatter){scatter.destroy();scatter=null;}
+  const ctx = document.getElementById('scatterChart').getContext('2d');
+  const pts = DATA.map((a,i)=>({
+    x: Math.log10(Math.max(a.views,1)),
+    y: a.recirc,
+    title: a.title,
+    isSel: i===selIdx
+  }));
+  const medV = [...DATA].sort((a,b)=>a.views-b.views)[Math.floor(DATA.length/2)].views;
+  const medR = [...DATA].sort((a,b)=>a.recirc-b.recirc)[Math.floor(DATA.length/2)].recirc;
+  scatter = new Chart(ctx,{
+    type:'scatter',
+    data:{datasets:[{
+      data:pts,
+      pointRadius: pts.map(p=>p.isSel?9:5),
+      pointBackgroundColor: pts.map(p=>p.isSel?'#f0f6fc':'rgba(88,166,255,0.55)'),
+      pointBorderColor: pts.map(p=>p.isSel?'#58a6ff':'transparent'),
+      pointBorderWidth:2
+    }]},
+    options:{
+      responsive:true,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{label:ctx=>{
+          const p=pts[ctx.dataIndex];
+          return `${p.title.substring(0,36)}: ${Math.round(Math.pow(10,p.x)).toLocaleString()} views, ${p.y.toFixed(1)}% recirc`;
+        }}}
+      },
+      scales:{
+        x:{
+          title:{display:true,text:'Views (log scale)',color:'#8b949e',font:{size:11}},
+          ticks:{color:'#8b949e',callback:v=>Math.round(Math.pow(10,v)).toLocaleString()},
+          grid:{color:'#21262d'}
+        },
+        y:{
+          title:{display:true,text:'Recirculation %',color:'#8b949e',font:{size:11}},
+          ticks:{color:'#8b949e',callback:v=>v+'%'},
+          grid:{color:'#21262d'}
+        }
+      }
+    },
+    plugins:[{
+      id:'quadrants',
+      afterDraw(chart){
+        const{ctx,chartArea:{left,right,top,bottom},scales:{x,y}}=chart;
+        const mx=x.getPixelForValue(Math.log10(medV));
+        const my=y.getPixelForValue(medR);
+        ctx.save();
+        ctx.strokeStyle='rgba(88,166,255,0.2)';
+        ctx.lineWidth=1;
+        ctx.setLineDash([4,4]);
+        ctx.beginPath();ctx.moveTo(mx,top);ctx.lineTo(mx,bottom);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(left,my);ctx.lineTo(right,my);ctx.stroke();
+        ctx.setLineDash([]);
+        const labels=[
+          {x:right-4,y:top+12,text:'High Reach + High Depth',align:'right'},
+          {x:left+4, y:top+12,text:'Low Reach + High Depth',align:'left'},
+          {x:right-4,y:bottom-6,text:'High Reach + Low Depth',align:'right'},
+          {x:left+4, y:bottom-6,text:'Low Reach + Low Depth',align:'left'},
+        ];
+        ctx.font='9px Helvetica';ctx.fillStyle='rgba(139,148,158,0.6)';
+        labels.forEach(l=>{ctx.textAlign=l.align;ctx.fillText(l.text,l.x,l.y);});
+        ctx.restore();
+      }
+    }]
+  });
+}
+
+buildTable();
+select(0);
+</script>
+</body>
+</html>
