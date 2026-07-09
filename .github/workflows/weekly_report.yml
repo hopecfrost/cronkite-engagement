@@ -2,10 +2,8 @@ name: Weekly Engagement Report
 
 on:
   schedule:
-    # Every Monday at 9:00 AM UTC (2 AM Arizona time)
     - cron: '0 9 * * 1'
   workflow_dispatch:
-    # Allows manual trigger from GitHub Actions tab
 
 jobs:
   generate-report:
@@ -31,7 +29,7 @@ jobs:
           SMTP_PASSWORD:  ${{ secrets.SMTP_PASSWORD }}
         run: python cronkite_engagement.py
 
-- name: Prepare output folder
+      - name: Prepare output folder
         run: |
           mkdir -p dist
           cp cronkite_report_*.html dist/index.html
