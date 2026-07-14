@@ -27,7 +27,6 @@
     border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em;
   }
 
-  /* Filter bar */
   .filter-bar {
     display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
     padding: 12px 16px; background: var(--card);
@@ -88,7 +87,7 @@
   .bar-val { font-size: 0.72rem; color: var(--muted); width: 24px; text-align: right; }
 
   .side-panel { display: flex; flex-direction: column; gap: 14px; }
-  .chart-wrap { position: relative; height: 240px; }
+  .chart-wrap    { position: relative; height: 240px; }
   .chart-wrap-sm { position: relative; height: 180px; }
 
   .pill-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
@@ -105,14 +104,14 @@
   }
   .selected-meta { font-size: 0.73rem; color: var(--muted); margin-bottom: 10px; }
 
-  .device-legend { display: flex; gap: 14px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+  .device-legend {
+    display: flex; gap: 14px; justify-content: center;
+    margin-top: 8px; flex-wrap: wrap;
+  }
   .device-legend span { font-size: 0.72rem; display: flex; align-items: center; gap: 5px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 
-  footer {
-    text-align: center; padding: 16px;
-    font-size: 0.7rem; color: var(--muted);
-  }
+  footer { text-align: center; padding: 16px; font-size: 0.7rem; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -120,15 +119,19 @@
 <header>
   <div>
     <h1>Cronkite News — Engagement Report</h1>
-    <div class="meta">Stories from the week of 2026-07-14 &nbsp;|&nbsp; scored after 7+ days &nbsp;|&nbsp; 17 stories</div>
+    <div class="meta" id="header-meta">Generated 2026-07-14 &nbsp;|&nbsp; 17 stories in archive</div>
   </div>
   <span class="badge">Auto-generated</span>
 </header>
 
-<!-- Filter bar -->
 <div class="filter-bar">
   <span class="filter-label">Search:</span>
-  <input type="text" id="search" placeholder="Search by title or author…">
+  <input type="text" id="search" placeholder="Title or author…">
+
+  <span class="filter-label">Week:</span>
+  <select id="filter-week">
+    <option value="all">All time</option>
+  </select>
 
   <span class="filter-label">Section:</span>
   <select id="filter-section">
@@ -142,36 +145,26 @@
     <option value="40">40+ (Mid)</option>
   </select>
 
-  <span class="filter-label">Published:</span>
-  <select id="filter-date">
-    <option value="all">All</option>
-    <option value="7">7 days ago</option>
-    <option value="8">8 days ago</option>
-    <option value="9">9 days ago</option>
-    <option value="10">10 days ago</option>
-    <option value="11">11–14 days ago</option>
-  </select>
-
   <span id="result-count"></span>
 </div>
 
 <div class="layout">
 
-  <!-- Left: ranked table -->
   <div class="card">
     <h2>Story Rankings</h2>
     <div class="pill-legend">
-      <span class="leg-reach">Reach 30%</span>
       <span class="leg-depth">Depth 50%</span>
+      <span class="leg-reach">Reach 30%</span>
       <span class="leg-discovery">Discovery 20%</span>
     </div>
     <table>
       <thead>
         <tr>
-          <th data-col="rank">#</th>
+          <th>#</th>
           <th data-col="title">Story</th>
           <th data-col="section_norm">Section</th>
           <th data-col="pub_date_display">Published</th>
+          <th data-col="week_scored">Week Scored</th>
           <th data-col="views">Views</th>
           <th data-col="reach">Reach</th>
           <th data-col="depth">Depth</th>
@@ -183,10 +176,8 @@
     </table>
   </div>
 
-  <!-- Right: side panel -->
   <div class="side-panel">
 
-    <!-- Radar -->
     <div class="card">
       <h2>Pillar Breakdown</h2>
       <div class="selected-title" id="sel-title">Click a story to inspect</div>
@@ -196,7 +187,6 @@
       </div>
     </div>
 
-    <!-- Device breakdown -->
     <div class="card">
       <h2>Device Breakdown</h2>
       <div class="chart-wrap-sm">
@@ -209,7 +199,6 @@
       </div>
     </div>
 
-    <!-- Scatter -->
     <div class="card">
       <h2>Score Distribution (Reach vs. Depth)</h2>
       <div class="chart-wrap-sm">
@@ -217,11 +206,10 @@
       </div>
     </div>
 
-    <!-- Methodology -->
-    <div class="card" style="font-size:0.73rem; color:var(--muted); line-height:1.65;">
+    <div class="card" style="font-size:0.73rem;color:var(--muted);line-height:1.65;">
       <h2>Methodology</h2>
       Each score is a <strong style="color:var(--text)">section-relative percentile</strong> (0–100)
-      vs. the section's Dec 2024–Jul 2026 baseline (N=9,483 stories).<br><br>
+      vs. the section's Dec 2024–Jul 2026 baseline (N=9,483).<br><br>
       <strong style="color:#9b59b6">Depth 50%</strong> — avg. engaged minutes<br>
       <strong style="color:#3498db">Reach 30%</strong> — log(views)<br>
       <strong style="color:#1abc9c">Discovery 20%</strong> — % traffic from search<br><br>
@@ -242,13 +230,15 @@ const posts = [
     "section_norm": "Politics & Policy",
     "pub_date": "2026-07-01T00:23:00",
     "pub_date_display": "Jul 1, 2026",
-    "views": 2399,
+    "week_scored": "2026-07-14",
+    "views": 2401,
     "reach": 98.4,
     "depth": 97.1,
-    "discovery": 50.4,
+    "discovery": 50.3,
     "composite": 88.1,
-    "mob_pct": 74.2,
-    "desk_pct": 23.6,
+    "depth_label": "Avg. Engaged Minutes",
+    "mob_pct": 74.1,
+    "desk_pct": 23.7,
     "tab_pct": 2.2
   },
   {
@@ -258,13 +248,15 @@ const posts = [
     "section_norm": "National Security",
     "pub_date": "2026-06-30T23:54:01",
     "pub_date_display": "Jun 30, 2026",
-    "views": 508,
+    "week_scored": "2026-07-14",
+    "views": 510,
     "reach": 95.7,
     "depth": 93.9,
-    "discovery": 26.7,
+    "discovery": 26.5,
     "composite": 81.0,
-    "mob_pct": 56.1,
-    "desk_pct": 43.7,
+    "depth_label": "Avg. Engaged Minutes",
+    "mob_pct": 55.9,
+    "desk_pct": 43.9,
     "tab_pct": 0.2
   },
   {
@@ -274,11 +266,13 @@ const posts = [
     "section_norm": "Politics & Policy",
     "pub_date": "2026-07-01T20:21:50",
     "pub_date_display": "Jul 1, 2026",
+    "week_scored": "2026-07-14",
     "views": 291,
     "reach": 81.3,
     "depth": 99.2,
     "discovery": 34.2,
     "composite": 80.8,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 48.5,
     "desk_pct": 50.9,
     "tab_pct": 0.6
@@ -290,13 +284,15 @@ const posts = [
     "section_norm": "Borderlands",
     "pub_date": "2026-06-30T14:30:00",
     "pub_date_display": "Jun 30, 2026",
-    "views": 792,
+    "week_scored": "2026-07-14",
+    "views": 793,
     "reach": 98.2,
     "depth": 78.0,
-    "discovery": 48.9,
+    "discovery": 48.7,
     "composite": 78.2,
-    "mob_pct": 66.7,
-    "desk_pct": 33.1,
+    "depth_label": "Avg. Engaged Minutes",
+    "mob_pct": 66.6,
+    "desk_pct": 33.2,
     "tab_pct": 0.2
   },
   {
@@ -306,11 +302,13 @@ const posts = [
     "section_norm": "Politics & Policy",
     "pub_date": "2026-06-30T14:04:57",
     "pub_date_display": "Jun 30, 2026",
+    "week_scored": "2026-07-14",
     "views": 573,
     "reach": 90.1,
     "depth": 86.6,
     "discovery": 31.5,
     "composite": 76.6,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 53.2,
     "desk_pct": 46.6,
     "tab_pct": 0.2
@@ -322,11 +320,13 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-07-07T23:53:28",
     "pub_date_display": "Jul 7, 2026",
+    "week_scored": "2026-07-14",
     "views": 157,
     "reach": 72.6,
     "depth": 99.9,
     "discovery": 24.4,
     "composite": 76.6,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 59.9,
     "desk_pct": 38.9,
     "tab_pct": 1.2
@@ -338,11 +338,13 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-07-01T19:35:27",
     "pub_date_display": "Jul 1, 2026",
+    "week_scored": "2026-07-14",
     "views": 287,
     "reach": 84.9,
     "depth": 88.2,
     "discovery": 10.0,
     "composite": 71.6,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 70.4,
     "desk_pct": 29.3,
     "tab_pct": 0.3
@@ -354,11 +356,13 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-07-02T18:52:49",
     "pub_date_display": "Jul 2, 2026",
+    "week_scored": "2026-07-14",
     "views": 162,
     "reach": 73.3,
     "depth": 96.4,
     "discovery": 4.4,
     "composite": 71.1,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 54.3,
     "desk_pct": 44.4,
     "tab_pct": 1.3
@@ -370,11 +374,13 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-07-01T20:06:46",
     "pub_date_display": "Jul 1, 2026",
+    "week_scored": "2026-07-14",
     "views": 278,
     "reach": 84.4,
     "depth": 78.9,
     "discovery": 22.5,
     "composite": 69.3,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 62.9,
     "desk_pct": 35.3,
     "tab_pct": 1.8
@@ -386,11 +392,13 @@ const posts = [
     "section_norm": "Culture",
     "pub_date": "2026-07-01T23:09:46",
     "pub_date_display": "Jul 1, 2026",
+    "week_scored": "2026-07-14",
     "views": 277,
     "reach": 89.9,
     "depth": 81.5,
     "discovery": 5.3,
     "composite": 68.8,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 56.0,
     "desk_pct": 42.6,
     "tab_pct": 1.4
@@ -402,14 +410,16 @@ const posts = [
     "section_norm": "Borderlands",
     "pub_date": "2026-07-01T22:57:21",
     "pub_date_display": "Jul 1, 2026",
-    "views": 434,
+    "week_scored": "2026-07-14",
+    "views": 435,
     "reach": 95.3,
-    "depth": 65.8,
-    "discovery": 28.9,
-    "composite": 67.3,
-    "mob_pct": 56.7,
-    "desk_pct": 41.9,
-    "tab_pct": 1.4
+    "depth": 66.0,
+    "discovery": 29.1,
+    "composite": 67.4,
+    "depth_label": "Avg. Engaged Minutes",
+    "mob_pct": 56.6,
+    "desk_pct": 42.1,
+    "tab_pct": 1.3
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/06/fifa-reinstate-folarin-balogun-world-cup-2026/?itm_source=parsely-api",
@@ -418,11 +428,13 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-07-06T23:35:22",
     "pub_date_display": "Jul 6, 2026",
+    "week_scored": "2026-07-14",
     "views": 308,
     "reach": 86.0,
     "depth": 76.8,
     "discovery": 14.1,
     "composite": 67.0,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 58.1,
     "desk_pct": 41.2,
     "tab_pct": 0.7
@@ -434,11 +446,13 @@ const posts = [
     "section_norm": "Social Justice",
     "pub_date": "2026-06-30T22:42:17",
     "pub_date_display": "Jun 30, 2026",
+    "week_scored": "2026-07-14",
     "views": 249,
     "reach": 91.5,
     "depth": 71.2,
     "discovery": 15.2,
     "composite": 66.1,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 31.7,
     "desk_pct": 68.3,
     "tab_pct": 0.0
@@ -450,11 +464,13 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-07-07T20:29:15",
     "pub_date_display": "Jul 7, 2026",
+    "week_scored": "2026-07-14",
     "views": 359,
     "reach": 88.3,
     "depth": 60.5,
     "discovery": 29.4,
     "composite": 62.6,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 68.2,
     "desk_pct": 31.2,
     "tab_pct": 0.6
@@ -466,11 +482,13 @@ const posts = [
     "section_norm": "Noticias",
     "pub_date": "2026-07-01T22:10:19",
     "pub_date_display": "Jul 1, 2026",
+    "week_scored": "2026-07-14",
     "views": 126,
     "reach": 87.2,
     "depth": 48.8,
     "discovery": 40.8,
     "composite": 58.7,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 67.5,
     "desk_pct": 32.5,
     "tab_pct": 0.0
@@ -482,11 +500,13 @@ const posts = [
     "section_norm": "Education",
     "pub_date": "2026-07-01T18:27:56",
     "pub_date_display": "Jul 1, 2026",
+    "week_scored": "2026-07-14",
     "views": 334,
     "reach": 99.9,
     "depth": 50.4,
     "discovery": 3.1,
     "composite": 55.8,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 46.1,
     "desk_pct": 53.9,
     "tab_pct": 0.0
@@ -498,18 +518,19 @@ const posts = [
     "section_norm": "Sports",
     "pub_date": "2026-06-30T22:08:33",
     "pub_date_display": "Jun 30, 2026",
+    "week_scored": "2026-07-14",
     "views": 108,
     "reach": 63.0,
     "depth": 41.4,
     "discovery": 2.7,
     "composite": 40.1,
+    "depth_label": "Avg. Engaged Minutes",
     "mob_pct": 40.7,
     "desk_pct": 59.3,
     "tab_pct": 0.0
   }
 ];
 
-// ── Helpers ──
 function scoreClass(s) {
   return s >= 65 ? 'score-high' : s >= 40 ? 'score-mid' : 'score-low';
 }
@@ -522,20 +543,18 @@ const tbody = document.getElementById('tbody');
 posts.forEach((p, i) => {
   const tr = document.createElement('tr');
   tr.dataset.idx = i;
-  tr.dataset.section = p.section_norm;
-  tr.dataset.composite = p.composite;
-  tr.dataset.pub = p.pub_date ? p.pub_date.slice(0,10) : '';
   tr.innerHTML = `
     <td style="color:var(--muted);font-size:0.72rem">${i+1}</td>
     <td>
       <a href="${p.url}" target="_blank"
          style="color:#fff;text-decoration:none;font-size:0.81rem;display:block"
          onclick="event.stopPropagation()"
-      >${p.title.length>52 ? p.title.slice(0,52)+'…' : p.title}</a>
+      >${p.title.length>52?p.title.slice(0,52)+'…':p.title}</a>
       <span style="font-size:0.7rem;color:var(--muted)">${p.author}</span>
     </td>
     <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${p.section_norm}</td>
     <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${p.pub_date_display}</td>
+    <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${p.week_scored}</td>
     <td style="color:var(--muted);font-size:0.76rem">${p.views.toLocaleString()}</td>
     <td>${bar(p.reach,'bar-reach')}</td>
     <td>${bar(p.depth,'bar-depth')}</td>
@@ -546,8 +565,18 @@ posts.forEach((p, i) => {
   tbody.appendChild(tr);
 });
 
-// ── Populate section dropdown ──
+// ── Populate dropdowns from data ──
+const weeks    = [...new Set(posts.map(p => p.week_scored))].sort().reverse();
 const sections = [...new Set(posts.map(p => p.section_norm))].sort();
+
+const weekSel = document.getElementById('filter-week');
+weeks.forEach(w => {
+  const o = document.createElement('option');
+  o.value = w;
+  o.textContent = `Week of ${w}`;
+  weekSel.appendChild(o);
+});
+
 const secSel = document.getElementById('filter-section');
 sections.forEach(s => {
   const o = document.createElement('option');
@@ -557,114 +586,99 @@ sections.forEach(s => {
 
 // ── Filters ──
 function applyFilters() {
-  const q    = document.getElementById('search').value.toLowerCase();
-  const sec  = document.getElementById('filter-section').value;
-  const minS = parseFloat(document.getElementById('filter-score').value) || 0;
-  const dateF= document.getElementById('filter-date').value;
+  const q     = document.getElementById('search').value.toLowerCase();
+  const week  = document.getElementById('filter-week').value;
+  const sec   = document.getElementById('filter-section').value;
+  const minS  = parseFloat(document.getElementById('filter-score').value) || 0;
 
-  const now = new Date();
-  let visible = 0;
-
+  let visible = 0, rank = 0;
   document.querySelectorAll('#tbody tr').forEach(tr => {
-    const idx = parseInt(tr.dataset.idx);
-    const p   = posts[idx];
-    const matchQ   = !q || p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q);
-    const matchSec = !sec || p.section_norm === sec;
-    const matchS   = p.composite >= minS;
-
-    let matchDate = true;
-    if (dateF !== 'all' && p.pub_date) {
-      const pub  = new Date(p.pub_date);
-      const days = Math.round((now - pub) / 86400000);
-      if (dateF === '11') matchDate = days >= 11;
-      else matchDate = days === parseInt(dateF);
-    }
-
-    const show = matchQ && matchSec && matchS && matchDate;
+    const p = posts[parseInt(tr.dataset.idx)];
+    const show =
+      (!q    || p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q)) &&
+      (!week || week === 'all' || p.week_scored === week) &&
+      (!sec  || p.section_norm === sec) &&
+      (p.composite >= minS);
     tr.classList.toggle('hidden', !show);
-    if (show) visible++;
+    if (show) {
+      visible++;
+      tr.querySelector('td:first-child').textContent = ++rank;
+    }
   });
-
-  document.getElementById('result-count').textContent = `${visible} of ${posts.length} stories`;
+  document.getElementById('result-count').textContent =
+    `${visible} of ${posts.length} stories`;
 }
 
-document.getElementById('search').addEventListener('input', applyFilters);
-document.getElementById('filter-section').addEventListener('change', applyFilters);
-document.getElementById('filter-score').addEventListener('change', applyFilters);
-document.getElementById('filter-date').addEventListener('change', applyFilters);
+['search','filter-week','filter-section','filter-score'].forEach(id =>
+  document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', applyFilters)
+);
 applyFilters();
 
-// ── Radar chart ──
+// ── Charts ──
 const radarCtx = document.getElementById('radarChart').getContext('2d');
 const radarChart = new Chart(radarCtx, {
   type: 'radar',
   data: {
     labels: ['Reach (30%)','Depth (50%)','Discovery (20%)'],
-    datasets: [{ label: 'Score', data: [0,0,0],
-      backgroundColor: 'rgba(255,198,39,0.15)',
-      borderColor: '#FFC627', pointBackgroundColor: '#FFC627', borderWidth: 2
+    datasets: [{ label:'Score', data:[0,0,0],
+      backgroundColor:'rgba(255,198,39,0.15)',
+      borderColor:'#FFC627', pointBackgroundColor:'#FFC627', borderWidth:2
     }]
   },
   options: {
-    responsive: true, maintainAspectRatio: false,
-    scales: { r: { min:0, max:100,
-      ticks: { stepSize:25, color:'#888', font:{size:9} },
-      grid: { color:'rgba(255,255,255,0.07)' },
-      pointLabels: { color:'#ccc', font:{size:11} },
-      angleLines: { color:'rgba(255,255,255,0.07)' },
+    responsive:true, maintainAspectRatio:false,
+    scales:{ r:{ min:0, max:100,
+      ticks:{stepSize:25,color:'#888',font:{size:9}},
+      grid:{color:'rgba(255,255,255,0.07)'},
+      pointLabels:{color:'#ccc',font:{size:11}},
+      angleLines:{color:'rgba(255,255,255,0.07)'},
     } },
-    plugins: { legend: { display:false } },
+    plugins:{legend:{display:false}},
   }
 });
 
-// ── Device donut chart ──
 const deviceCtx = document.getElementById('deviceChart').getContext('2d');
 const deviceChart = new Chart(deviceCtx, {
   type: 'doughnut',
   data: {
     labels: ['Desktop','Mobile','Tablet'],
-    datasets: [{ data: [0,0,0],
-      backgroundColor: ['#3498db','#FFC627','#9b59b6'],
-      borderColor: 'var(--card)', borderWidth: 2,
+    datasets: [{ data:[0,0,0],
+      backgroundColor:['#3498db','#FFC627','#9b59b6'],
+      borderColor:'var(--card)', borderWidth:2,
     }]
   },
   options: {
-    responsive: true, maintainAspectRatio: false,
-    cutout: '65%',
-    plugins: {
-      legend: { display: false },
-      tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%` } },
+    responsive:true, maintainAspectRatio:false, cutout:'65%',
+    plugins:{
+      legend:{display:false},
+      tooltip:{callbacks:{label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%`}},
     },
   }
 });
 
-// ── Scatter chart ──
 const scatterCtx = document.getElementById('scatterChart').getContext('2d');
 new Chart(scatterCtx, {
-  type: 'scatter',
-  data: { datasets: [{ label: 'Stories',
-    data: posts.map(p => ({ x: p.reach, y: p.depth, post: p })),
+  type:'scatter',
+  data:{ datasets:[{ label:'Stories',
+    data: posts.map(p => ({x:p.reach, y:p.depth, post:p})),
     backgroundColor: posts.map(p =>
       p.composite>=65?'rgba(46,204,113,0.75)':
       p.composite>=40?'rgba(255,198,39,0.75)':'rgba(231,76,60,0.75)'),
-    pointRadius: 5,
+    pointRadius:4,
   }] },
-  options: {
-    responsive: true, maintainAspectRatio: false,
-    scales: {
-      x: { min:0, max:100, title:{display:true,text:'Reach',color:'#3498db',font:{size:10}},
-             grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#888',font:{size:9}} },
-      y: { min:0, max:100, title:{display:true,text:'Depth',color:'#9b59b6',font:{size:10}},
-             grid:{color:'rgba(255,255,255,0.04)'}, ticks:{color:'#888',font:{size:9}} },
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    scales:{
+      x:{min:0,max:100,title:{display:true,text:'Reach',color:'#3498db',font:{size:10}},
+           grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#888',font:{size:9}}},
+      y:{min:0,max:100,title:{display:true,text:'Depth',color:'#9b59b6',font:{size:10}},
+           grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#888',font:{size:9}}},
     },
-    plugins: {
-      legend:{display:false},
-      tooltip:{ callbacks:{ label: ctx => ctx.raw.post.title.slice(0,38) } },
-    },
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>ctx.raw.post.title.slice(0,38)}}},
   }
 });
 
-// ── Story selection ──
+// ── Selection ──
 let activeRow = null;
 function selectPost(idx) {
   if (activeRow !== null) {
@@ -674,24 +688,20 @@ function selectPost(idx) {
   activeRow = idx;
   const tr = document.querySelector(`tr[data-idx="${idx}"]`);
   if (tr) tr.classList.add('active');
-
   const p = posts[idx];
   document.getElementById('sel-title').textContent = p.title;
   document.getElementById('sel-meta').textContent =
     `${p.section_norm} · ${p.pub_date_display} · ${p.views.toLocaleString()} views · ${p.author}`;
-
   radarChart.data.datasets[0].data = [p.reach, p.depth, p.discovery];
   radarChart.update();
-
   deviceChart.data.datasets[0].data = [p.desk_pct, p.mob_pct, p.tab_pct];
   deviceChart.update();
 }
-
 if (posts.length > 0) selectPost(0);
 
 // ── Column sort ──
 let sortCol = 'composite', sortDir = -1;
-document.querySelectorAll('th').forEach(th => {
+document.querySelectorAll('th[data-col]').forEach(th => {
   th.addEventListener('click', () => {
     const col = th.dataset.col;
     document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
@@ -699,12 +709,13 @@ document.querySelectorAll('th').forEach(th => {
     sortDir = sortCol === col ? -sortDir : -1;
     sortCol = col;
     const rows = [...document.querySelectorAll('#tbody tr')];
-    rows.sort((a, b) => {
-      const ai = parseInt(a.dataset.idx), bi = parseInt(b.dataset.idx);
-      const av = posts[ai][col] ?? 0, bv = posts[bi][col] ?? 0;
+    rows.sort((a,b) => {
+      const av = posts[parseInt(a.dataset.idx)][col] ?? '';
+      const bv = posts[parseInt(b.dataset.idx)][col] ?? '';
       return sortDir * (av < bv ? -1 : av > bv ? 1 : 0);
     });
     rows.forEach(r => tbody.appendChild(r));
+    applyFilters();
   });
 });
 </script>
