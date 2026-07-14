@@ -2,14 +2,13 @@
 """
 Cronkite News Bureau — Engagement Scoring System
 -------------------------------------------------
-Scores recently published articles on three pillars (equal thirds):
-  Reach      — views, vs. section historical baseline
-  Depth      — avg. engaged minutes (or recirculation fallback), vs. baseline
-  Discovery  — % traffic from search, vs. section baseline
+Scores stories published 7-14 days ago on three pillars:
+  Reach (30%)     — views vs. section historical baseline
+  Depth (50%)     — avg. engaged minutes vs. baseline  ← professor priority
+  Discovery (20%) — % traffic from search vs. baseline
 
-Section baselines are pre-computed from a Dec 2024–Jul 2026 Parse.ly CSV export
-(9,483 stories). Each story is z-scored against its own section's history
-and converted to a 0–100 percentile, so Sports vs. Sports, Politics vs. Politics.
+Section baselines: Dec 2024–Jul 2026, N=9,483 stories.
+Each story z-scored against its own section's history → 0–100 percentile.
 """
 
 import os, math, datetime, smtplib, requests
@@ -22,8 +21,7 @@ PARSELY_SECRET = os.getenv("PARSELY_SECRET") or "tAytVAdJCyLdFHatqOOHLVXTrdHpUm5
 SMTP_EMAIL     = os.getenv("SMTP_EMAIL")     or ""
 SMTP_PASSWORD  = os.getenv("SMTP_PASSWORD")  or ""
 
-BASE_URL      = "https://api.parsely.com/v2"
-LOOKBACK_DAYS = 7
+BASE_URL = "https://api.parsely.com/v2"
 
 # ── Section name normalization ────────────────────────────────────────────────
 SECTION_MAP = {
@@ -32,7 +30,6 @@ SECTION_MAP = {
 }
 
 # ── Historical baselines (Dec 2024–Jul 2026, N=9,483 stories with ≥5 views) ──
-# Metrics: log(views+1), avg engaged minutes, search_refs/views
 SECTION_BASELINES = {
     "Borderlands": {
         "log_views_mean": 3.671606, "log_views_std": 1.436332,
@@ -142,18 +139,16 @@ BUREAU_WIDE = {
     "search_pct_mean":0.462767, "search_pct_std":0.215110,
 }
 
-# ── Author email map (fill in before sending emails) ─────────────────────────
+# ── Author email map ──────────────────────────────────────────────────────────
 AUTHOR_EMAILS = {
     # "First Last": "email@asu.edu",
 }
 
 # ── Math helpers ──────────────────────────────────────────────────────────────
 def norm_cdf(z):
-    """Standard normal CDF — uses math.erf, no scipy needed."""
     return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
 def z_to_pct(value, mean, std):
-    """Convert a raw value to a 0–100 percentile vs. the given baseline."""
     if std <= 0:
         return 50.0
     z = max(-3.0, min(3.0, (value - mean) / std))
@@ -165,11 +160,7 @@ def get_baselines(raw_section):
 
 # ── Parse.ly API ──────────────────────────────────────────────────────────────
 def parsely_get(endpoint, extra_params=None):
-    params = {
-        "apikey": PARSELY_KEY,
-        "secret": PARSELY_SECRET,
-        "limit":  50,
-    }
+    params = {"apikey": PARSELY_KEY, "secret": PARSELY_SECRET, "limit": 50}
     if extra_params:
         params.update(extra_params)
     r = requests.get(f"{BASE_URL}{endpoint}", params=params, timeout=30)
@@ -178,12 +169,14 @@ def parsely_get(endpoint, extra_params=None):
 
 def get_posts():
     """
-    Pull last 7 days of posts via 3 API calls (sorted by views / avg_engaged /
-    search_refs) and join results by URL so each article gets all metrics.
+    Fetch stories published 7–14 days ago so every story has had at least
+    a full week to accumulate traffic before being scored.
+    Makes 5 API calls to collect all metrics, joined by URL.
     """
-    now        = datetime.datetime.utcnow()
-    week_ago   = now - datetime.timedelta(days=7)
-    two_weeks  = now - datetime.timedelta(days=14)
+    now       = datetime.datetime.utcnow()
+    week_ago  = now - datetime.timedelta(days=7)
+    two_weeks = now - datetime.timedelta(days=14)
+
     date_params = {
         "pub_date_start": two_weeks.strftime("%Y-%m-%d"),
         "pub_date_end":   week_ago.strftime("%Y-%m-%d"),
@@ -193,12 +186,12 @@ def get_posts():
 
     merged = {}
 
-    for sort_key in ["views", "avg_engaged", "search_refs"]:
+    for sort_key in ["views", "avg_engaged", "search_refs", "mobile_views", "desktop_views"]:
         try:
             data = parsely_get("/analytics/posts", {**date_params, "sort": sort_key})
-            print(f"  sort={sort_key}: {len(data)} posts returned")
+            print(f"  sort={sort_key}: {len(data)} posts")
         except Exception as e:
-            print(f"  Warning: sort={sort_key} call failed — {e}")
+            print(f"  Warning: sort={sort_key} failed — {e}")
             continue
 
         for item in data:
@@ -208,16 +201,20 @@ def get_posts():
             m = item.get("metrics", {})
 
             if url not in merged:
+                pub_raw = item.get("pub_date", "")
                 merged[url] = {
-                    "url":               url,
-                    "title":             item.get("title", "Untitled"),
-                    "author":            item.get("author", "Unknown"),
-                    "section":           item.get("section", ""),
-                    "pub_date":          item.get("pub_date", ""),
-                    "views":             0,
-                    "avg_engaged":       0.0,
-                    "search_refs":       0,
-                    "recirculation_rate":0.0,
+                    "url":                url,
+                    "title":              item.get("title", "Untitled"),
+                    "author":             item.get("author", "Unknown"),
+                    "section":            item.get("section", ""),
+                    "pub_date":           pub_raw,
+                    "pub_date_display":   _fmt_date(pub_raw),
+                    "views":              0,
+                    "avg_engaged":        0.0,
+                    "search_refs":        0,
+                    "mobile_views":       0,
+                    "desktop_views":      0,
+                    "recirculation_rate": 0.0,
                 }
 
             if m.get("views", 0) > 0:
@@ -226,60 +223,77 @@ def get_posts():
                 merged[url]["avg_engaged"] = m["avg_engaged"]
             if m.get("search_refs", 0) > 0:
                 merged[url]["search_refs"] = m["search_refs"]
+            if m.get("mobile_views", 0) > 0:
+                merged[url]["mobile_views"] = m["mobile_views"]
+            if m.get("desktop_views", 0) > 0:
+                merged[url]["desktop_views"] = m["desktop_views"]
             if m.get("recirculation_rate") is not None:
                 merged[url]["recirculation_rate"] = m["recirculation_rate"]
 
     posts = [p for p in merged.values() if p["views"] > 0]
-    print(f"  Total unique posts with views: {len(posts)}")
+    print(f"  Total unique posts: {len(posts)}")
     return posts
+
+def _fmt_date(raw):
+    """Format pub_date string for display."""
+    try:
+        dt = datetime.datetime.fromisoformat(raw.replace("Z", ""))
+        return dt.strftime("%b %-d, %Y")
+    except Exception:
+        return raw[:10] if raw else ""
 
 # ── Scoring ───────────────────────────────────────────────────────────────────
 def score_articles(posts):
-    """
-    Score each post on Reach / Depth / Discovery (equal thirds).
-    If avg_engaged is unavailable for ≥80% of posts, fall back to recirculation.
-    """
     has_engaged = sum(1 for p in posts if p["avg_engaged"] > 0)
     use_recirc  = (has_engaged / max(len(posts), 1)) < 0.2
     depth_label = "Recirculation (fallback)" if use_recirc else "Avg. Engaged Minutes"
 
     if use_recirc:
-        print("  Note: avg_engaged unavailable for most posts — using recirculation rate for Depth")
+        print("  Note: avg_engaged unavailable — falling back to recirculation rate for Depth")
 
     scored = []
     for post in posts:
         baselines, section_norm = get_baselines(post["section"])
         views = max(post["views"], 1)
 
-        # Reach: log(views) vs. section baseline
+        # Reach (30%)
         reach = z_to_pct(math.log(views + 1),
-                          baselines["log_views_mean"],
-                          baselines["log_views_std"])
+                          baselines["log_views_mean"], baselines["log_views_std"])
 
-        # Depth: avg_engaged minutes vs. section baseline (recirc fallback)
+        # Depth (50%) — professor priority
         if use_recirc or post["avg_engaged"] == 0:
             depth = round(min(post["recirculation_rate"] / 0.10, 1.0) * 100, 1)
         else:
             depth = z_to_pct(post["avg_engaged"],
-                              baselines["avg_min_mean"],
-                              baselines["avg_min_std"])
+                              baselines["avg_min_mean"], baselines["avg_min_std"])
 
-        # Discovery: search % vs. section baseline
+        # Discovery (20%)
         search_pct = post["search_refs"] / views
         discovery  = z_to_pct(search_pct,
-                               baselines["search_pct_mean"],
-                               baselines["search_pct_std"])
+                               baselines["search_pct_mean"], baselines["search_pct_std"])
 
+        # Weighted composite: Depth 50%, Reach 30%, Discovery 20%
         composite = round(reach * 0.30 + depth * 0.50 + discovery * 0.20, 1)
+
+        # Device breakdown
+        mob  = post["mobile_views"]
+        desk = post["desktop_views"]
+        tab  = max(0, views - mob - desk)
+        mob_pct  = round(mob  / views * 100, 1)
+        desk_pct = round(desk / views * 100, 1)
+        tab_pct  = round(max(0.0, 100 - mob_pct - desk_pct), 1)
 
         scored.append({
             **post,
-            "section_norm":  section_norm,
-            "reach":         reach,
-            "depth":         depth,
-            "discovery":     discovery,
-            "composite":     composite,
-            "depth_label":   depth_label,
+            "section_norm": section_norm,
+            "reach":        reach,
+            "depth":        depth,
+            "discovery":    discovery,
+            "composite":    composite,
+            "depth_label":  depth_label,
+            "mob_pct":      mob_pct,
+            "desk_pct":     desk_pct,
+            "tab_pct":      tab_pct,
         })
 
     scored.sort(key=lambda x: x["composite"], reverse=True)
@@ -288,21 +302,20 @@ def score_articles(posts):
 # ── Terminal report ───────────────────────────────────────────────────────────
 def print_report(scored):
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    print(f"\n{'='*80}")
+    print(f"\n{'='*85}")
     print(f"  CRONKITE ENGAGEMENT REPORT  —  {now}")
-    print(f"{'='*80}")
-    print(f"  Scoring: Reach 30% | Depth 50% | Discovery 20%")
-    print(f"  All scores are section-relative percentiles (0–100)")
+    print(f"{'='*85}")
+    print(f"  Scoring: Depth 50% | Reach 30% | Discovery 20%")
+    print(f"  Section-relative percentiles  |  Stories scored after 7+ days")
     print(f"  Baselines: Dec 2024–Jul 2026  |  N=9,483 stories")
-    print(f"{'='*80}\n")
+    print(f"{'='*85}\n")
 
-    fmt = "{:>3}. {:<42} {:>7} {:>7} {:>7} {:>7} {:>8}  {}"
+    fmt = "{:>3}. {:<40} {:>7} {:>7} {:>7} {:>7} {:>8}  {}"
     print(fmt.format("#", "Title", "Views", "Reach", "Depth", "Discov", "SCORE", "Section"))
-    print("-" * 105)
-
+    print("-" * 100)
     for i, p in enumerate(scored[:20], 1):
         print(fmt.format(
-            i, p["title"][:42],
+            i, p["title"][:40],
             f"{p['views']:,}",
             f"{p['reach']:.0f}",
             f"{p['depth']:.0f}",
@@ -324,91 +337,112 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
   :root {{
-    --gold: #FFC627;
-    --maroon: #8C1D40;
-    --dark: #1a1a2e;
-    --card: #16213e;
-    --text: #e0e0e0;
-    --muted: #888;
-    --border: #2a2a4a;
+    --gold: #FFC627; --maroon: #8C1D40;
+    --dark: #1a1a2e; --card: #16213e;
+    --text: #e0e0e0; --muted: #888; --border: #2a2a4a;
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{ background: var(--dark); color: var(--text); font-family: 'Segoe UI', sans-serif; }}
 
   header {{
     background: linear-gradient(135deg, var(--maroon), #5a0e28);
-    padding: 20px 32px;
-    display: flex;
-    align-items: center;
-    gap: 16px;
+    padding: 18px 28px; display: flex; align-items: center; gap: 16px;
     border-bottom: 3px solid var(--gold);
   }}
-  header h1 {{ font-size: 1.4rem; font-weight: 700; color: #fff; }}
-  header .meta {{ font-size: 0.8rem; color: rgba(255,255,255,0.65); margin-top: 4px; }}
+  header h1 {{ font-size: 1.35rem; font-weight: 700; color: #fff; }}
+  header .meta {{ font-size: 0.78rem; color: rgba(255,255,255,0.6); margin-top: 3px; }}
   .badge {{
-    background: var(--gold); color: var(--maroon);
-    font-size: 0.7rem; font-weight: 700;
-    padding: 3px 8px; border-radius: 99px;
-    text-transform: uppercase; letter-spacing: 0.05em;
-    margin-left: auto;
+    margin-left: auto; background: var(--gold); color: var(--maroon);
+    font-size: 0.68rem; font-weight: 700; padding: 3px 8px;
+    border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em;
   }}
 
-  .layout {{ display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px; }}
+  /* Filter bar */
+  .filter-bar {{
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    padding: 12px 16px; background: var(--card);
+    border-bottom: 1px solid var(--border);
+  }}
+  .filter-bar input, .filter-bar select {{
+    background: var(--dark); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; padding: 6px 10px;
+    font-size: 0.8rem; outline: none;
+  }}
+  .filter-bar input {{ width: 220px; }}
+  .filter-bar input::placeholder {{ color: var(--muted); }}
+  .filter-bar select {{ cursor: pointer; }}
+  .filter-bar select:focus, .filter-bar input:focus {{ border-color: var(--gold); }}
+  .filter-label {{ font-size: 0.75rem; color: var(--muted); }}
+  #result-count {{ font-size: 0.75rem; color: var(--muted); margin-left: auto; }}
+
+  .layout {{ display: grid; grid-template-columns: 1fr 400px; gap: 14px; padding: 14px; }}
 
   .card {{
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px;
   }}
-  .card h2 {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em;
-               color: var(--gold); margin-bottom: 14px; }}
+  .card h2 {{
+    font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--gold); margin-bottom: 12px;
+  }}
 
-  table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
-  th {{ text-align: left; padding: 8px 10px; color: var(--muted);
-        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
-        border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 0.81rem; }}
+  th {{
+    text-align: left; padding: 7px 8px; color: var(--muted);
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em;
+    border-bottom: 1px solid var(--border); cursor: pointer; user-select: none;
+    white-space: nowrap;
+  }}
   th:hover {{ color: var(--gold); }}
-  td {{ padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }}
-  tr {{ cursor: pointer; transition: background 0.15s; }}
-  tr:hover td {{ background: rgba(255,198,39,0.06); }}
-  tr.active td {{ background: rgba(255,198,39,0.12); }}
+  th.sorted {{ color: var(--gold); }}
+  td {{ padding: 8px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }}
+  tr {{ cursor: pointer; transition: background 0.12s; }}
+  tr:hover td {{ background: rgba(255,198,39,0.05); }}
+  tr.active td {{ background: rgba(255,198,39,0.11); }}
+  tr.hidden {{ display: none; }}
 
   .score-pill {{
-    display: inline-block;
-    padding: 3px 10px; border-radius: 99px;
-    font-weight: 700; font-size: 0.8rem;
+    display: inline-block; padding: 2px 9px; border-radius: 99px;
+    font-weight: 700; font-size: 0.78rem;
   }}
   .score-high {{ background: rgba(39,174,96,0.2);  color: #2ecc71; }}
   .score-mid  {{ background: rgba(255,198,39,0.2); color: var(--gold); }}
   .score-low  {{ background: rgba(231,76,60,0.15); color: #e74c3c; }}
 
-  .bar-wrap {{ display: flex; align-items: center; gap: 6px; }}
-  .bar {{ height: 6px; border-radius: 3px; background: var(--border); flex: 1; overflow: hidden; }}
+  .bar-wrap {{ display: flex; align-items: center; gap: 5px; }}
+  .bar {{ height: 5px; border-radius: 3px; background: var(--border); flex: 1; overflow: hidden; }}
   .bar-fill {{ height: 100%; border-radius: 3px; }}
   .bar-reach     {{ background: #3498db; }}
   .bar-depth     {{ background: #9b59b6; }}
   .bar-discovery {{ background: #1abc9c; }}
-  .bar-val {{ font-size: 0.75rem; color: var(--muted); width: 26px; text-align: right; }}
+  .bar-val {{ font-size: 0.72rem; color: var(--muted); width: 24px; text-align: right; }}
 
-  .side-panel {{ display: flex; flex-direction: column; gap: 16px; }}
-  .chart-wrap {{ position: relative; height: 280px; }}
+  .side-panel {{ display: flex; flex-direction: column; gap: 14px; }}
+  .chart-wrap {{ position: relative; height: 240px; }}
+  .chart-wrap-sm {{ position: relative; height: 180px; }}
 
-  .pill-legend {{ display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }}
+  .pill-legend {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }}
   .pill-legend span {{
-    font-size: 0.72rem; padding: 2px 8px; border-radius: 99px; font-weight: 600;
+    font-size: 0.7rem; padding: 2px 7px; border-radius: 99px; font-weight: 600;
   }}
   .leg-reach     {{ background: rgba(52,152,219,0.2);  color: #3498db; }}
   .leg-depth     {{ background: rgba(155,89,182,0.2);  color: #9b59b6; }}
   .leg-discovery {{ background: rgba(26,188,156,0.2);  color: #1abc9c; }}
 
   .selected-title {{
-    font-size: 0.95rem; font-weight: 600; color: #fff;
-    margin-bottom: 6px; line-height: 1.3;
+    font-size: 0.92rem; font-weight: 600; color: #fff;
+    margin-bottom: 4px; line-height: 1.3;
   }}
-  .selected-meta {{ font-size: 0.75rem; color: var(--muted); margin-bottom: 12px; }}
+  .selected-meta {{ font-size: 0.73rem; color: var(--muted); margin-bottom: 10px; }}
 
-  footer {{ text-align: center; padding: 20px; font-size: 0.72rem; color: var(--muted); }}
+  .device-legend {{ display: flex; gap: 14px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }}
+  .device-legend span {{ font-size: 0.72rem; display: flex; align-items: center; gap: 5px; }}
+  .dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
+
+  footer {{
+    text-align: center; padding: 16px;
+    font-size: 0.7rem; color: var(--muted);
+  }}
 </style>
 </head>
 <body>
@@ -421,24 +455,57 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   <span class="badge">Auto-generated</span>
 </header>
 
+<!-- Filter bar -->
+<div class="filter-bar">
+  <span class="filter-label">Search:</span>
+  <input type="text" id="search" placeholder="Search by title or author…">
+
+  <span class="filter-label">Section:</span>
+  <select id="filter-section">
+    <option value="">All sections</option>
+  </select>
+
+  <span class="filter-label">Min score:</span>
+  <select id="filter-score">
+    <option value="0">Any</option>
+    <option value="65">65+ (High)</option>
+    <option value="40">40+ (Mid)</option>
+  </select>
+
+  <span class="filter-label">Published:</span>
+  <select id="filter-date">
+    <option value="all">All</option>
+    <option value="7">7 days ago</option>
+    <option value="8">8 days ago</option>
+    <option value="9">9 days ago</option>
+    <option value="10">10 days ago</option>
+    <option value="11">11–14 days ago</option>
+  </select>
+
+  <span id="result-count"></span>
+</div>
+
 <div class="layout">
+
+  <!-- Left: ranked table -->
   <div class="card">
     <h2>Story Rankings</h2>
     <div class="pill-legend">
-      <span class="leg-reach">Reach</span>
-      <span class="leg-depth">Depth</span>
-      <span class="leg-discovery">Discovery</span>
+      <span class="leg-reach">Reach 30%</span>
+      <span class="leg-depth">Depth 50%</span>
+      <span class="leg-discovery">Discovery 20%</span>
     </div>
-    <table id="rankings">
+    <table>
       <thead>
         <tr>
           <th data-col="rank">#</th>
           <th data-col="title">Story</th>
           <th data-col="section_norm">Section</th>
+          <th data-col="pub_date_display">Published</th>
           <th data-col="views">Views</th>
           <th data-col="reach">Reach</th>
           <th data-col="depth">Depth</th>
-          <th data-col="discovery">Discovery</th>
+          <th data-col="discovery">Discov.</th>
           <th data-col="composite">Score</th>
         </tr>
       </thead>
@@ -446,7 +513,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </table>
   </div>
 
+  <!-- Right: side panel -->
   <div class="side-panel">
+
+    <!-- Radar -->
     <div class="card">
       <h2>Pillar Breakdown</h2>
       <div class="selected-title" id="sel-title">Click a story to inspect</div>
@@ -455,20 +525,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <canvas id="radarChart"></canvas>
       </div>
     </div>
+
+    <!-- Device breakdown -->
     <div class="card">
-      <h2>Score Distribution</h2>
-      <div class="chart-wrap">
+      <h2>Device Breakdown</h2>
+      <div class="chart-wrap-sm">
+        <canvas id="deviceChart"></canvas>
+      </div>
+      <div class="device-legend">
+        <span><span class="dot" style="background:#3498db"></span>Desktop</span>
+        <span><span class="dot" style="background:#FFC627"></span>Mobile</span>
+        <span><span class="dot" style="background:#9b59b6"></span>Tablet</span>
+      </div>
+    </div>
+
+    <!-- Scatter -->
+    <div class="card">
+      <h2>Score Distribution (Reach vs. Depth)</h2>
+      <div class="chart-wrap-sm">
         <canvas id="scatterChart"></canvas>
       </div>
     </div>
-    <div class="card" style="font-size:0.75rem; color:var(--muted); line-height:1.6;">
+
+    <!-- Methodology -->
+    <div class="card" style="font-size:0.73rem; color:var(--muted); line-height:1.65;">
       <h2>Methodology</h2>
       Each score is a <strong style="color:var(--text)">section-relative percentile</strong> (0–100)
-      comparing this story against its section's Dec 2024–Jul 2026 historical baseline (N=9,483).<br><br>
-      <strong style="color:#3498db">Reach</strong> — log(views) vs. section avg<br>
-      <strong style="color:#9b59b6">Depth</strong> — {depth_label} vs. section avg<br>
-      <strong style="color:#1abc9c">Discovery</strong> — % traffic from search vs. section avg<br><br>
-      Composite = Depth 50% · Reach 30% · Discovery 20%.
+      vs. the section's Dec 2024–Jul 2026 baseline (N=9,483 stories).<br><br>
+      <strong style="color:#9b59b6">Depth 50%</strong> — avg. engaged minutes<br>
+      <strong style="color:#3498db">Reach 30%</strong> — log(views)<br>
+      <strong style="color:#1abc9c">Discovery 20%</strong> — % traffic from search<br><br>
+      Stories are scored after 7+ days so every article has had a full week to accumulate traffic.
+      Depth metric: {depth_label}.
     </div>
   </div>
 </div>
@@ -478,6 +566,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script>
 const posts = {posts_json};
 
+// ── Helpers ──
 function scoreClass(s) {{
   return s >= 65 ? 'score-high' : s >= 40 ? 'score-mid' : 'score-low';
 }}
@@ -485,15 +574,26 @@ function bar(val, cls) {{
   return `<div class="bar-wrap"><div class="bar"><div class="bar-fill ${{cls}}" style="width:${{val}}%"></div></div><span class="bar-val">${{Math.round(val)}}</span></div>`;
 }}
 
+// ── Build table ──
 const tbody = document.getElementById('tbody');
 posts.forEach((p, i) => {{
   const tr = document.createElement('tr');
   tr.dataset.idx = i;
+  tr.dataset.section = p.section_norm;
+  tr.dataset.composite = p.composite;
+  tr.dataset.pub = p.pub_date ? p.pub_date.slice(0,10) : '';
   tr.innerHTML = `
-    <td style="color:var(--muted);font-size:0.75rem">${{i+1}}</td>
-    <td><a href="${{p.url}}" target="_blank" style="color:#fff;text-decoration:none;font-size:0.83rem" onclick="event.stopPropagation()">${{p.title.length>55?p.title.slice(0,55)+'…':p.title}}</a></td>
-    <td style="color:var(--muted);font-size:0.75rem;white-space:nowrap">${{p.section_norm}}</td>
-    <td style="color:var(--muted);font-size:0.78rem">${{p.views.toLocaleString()}}</td>
+    <td style="color:var(--muted);font-size:0.72rem">${{i+1}}</td>
+    <td>
+      <a href="${{p.url}}" target="_blank"
+         style="color:#fff;text-decoration:none;font-size:0.81rem;display:block"
+         onclick="event.stopPropagation()"
+      >${{p.title.length>52 ? p.title.slice(0,52)+'…' : p.title}}</a>
+      <span style="font-size:0.7rem;color:var(--muted)">${{p.author}}</span>
+    </td>
+    <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${{p.section_norm}}</td>
+    <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${{p.pub_date_display}}</td>
+    <td style="color:var(--muted);font-size:0.76rem">${{p.views.toLocaleString()}}</td>
     <td>${{bar(p.reach,'bar-reach')}}</td>
     <td>${{bar(p.depth,'bar-depth')}}</td>
     <td>${{bar(p.discovery,'bar-discovery')}}</td>
@@ -503,72 +603,165 @@ posts.forEach((p, i) => {{
   tbody.appendChild(tr);
 }});
 
+// ── Populate section dropdown ──
+const sections = [...new Set(posts.map(p => p.section_norm))].sort();
+const secSel = document.getElementById('filter-section');
+sections.forEach(s => {{
+  const o = document.createElement('option');
+  o.value = s; o.textContent = s;
+  secSel.appendChild(o);
+}});
+
+// ── Filters ──
+function applyFilters() {{
+  const q    = document.getElementById('search').value.toLowerCase();
+  const sec  = document.getElementById('filter-section').value;
+  const minS = parseFloat(document.getElementById('filter-score').value) || 0;
+  const dateF= document.getElementById('filter-date').value;
+
+  const now = new Date();
+  let visible = 0;
+
+  document.querySelectorAll('#tbody tr').forEach(tr => {{
+    const idx = parseInt(tr.dataset.idx);
+    const p   = posts[idx];
+    const matchQ   = !q || p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q);
+    const matchSec = !sec || p.section_norm === sec;
+    const matchS   = p.composite >= minS;
+
+    let matchDate = true;
+    if (dateF !== 'all' && p.pub_date) {{
+      const pub  = new Date(p.pub_date);
+      const days = Math.round((now - pub) / 86400000);
+      if (dateF === '11') matchDate = days >= 11;
+      else matchDate = days === parseInt(dateF);
+    }}
+
+    const show = matchQ && matchSec && matchS && matchDate;
+    tr.classList.toggle('hidden', !show);
+    if (show) visible++;
+  }});
+
+  document.getElementById('result-count').textContent = `${{visible}} of ${{posts.length}} stories`;
+}}
+
+document.getElementById('search').addEventListener('input', applyFilters);
+document.getElementById('filter-section').addEventListener('change', applyFilters);
+document.getElementById('filter-score').addEventListener('change', applyFilters);
+document.getElementById('filter-date').addEventListener('change', applyFilters);
+applyFilters();
+
+// ── Radar chart ──
 const radarCtx = document.getElementById('radarChart').getContext('2d');
 const radarChart = new Chart(radarCtx, {{
   type: 'radar',
   data: {{
-    labels: ['Reach','Depth','Discovery'],
+    labels: ['Reach (30%)','Depth (50%)','Discovery (20%)'],
     datasets: [{{ label: 'Score', data: [0,0,0],
-      backgroundColor: 'rgba(255,198,39,0.15)', borderColor: '#FFC627',
-      pointBackgroundColor: '#FFC627', borderWidth: 2 }}]
+      backgroundColor: 'rgba(255,198,39,0.15)',
+      borderColor: '#FFC627', pointBackgroundColor: '#FFC627', borderWidth: 2
+    }}]
   }},
   options: {{
     responsive: true, maintainAspectRatio: false,
     scales: {{ r: {{ min:0, max:100,
-      ticks: {{ stepSize:25, color:'#888', font:{{size:10}} }},
-      grid: {{ color:'rgba(255,255,255,0.08)' }},
-      pointLabels: {{ color:'#e0e0e0', font:{{size:12}} }},
-      angleLines: {{ color:'rgba(255,255,255,0.08)' }},
+      ticks: {{ stepSize:25, color:'#888', font:{{size:9}} }},
+      grid: {{ color:'rgba(255,255,255,0.07)' }},
+      pointLabels: {{ color:'#ccc', font:{{size:11}} }},
+      angleLines: {{ color:'rgba(255,255,255,0.07)' }},
     }} }},
     plugins: {{ legend: {{ display:false }} }},
   }}
 }});
 
+// ── Device donut chart ──
+const deviceCtx = document.getElementById('deviceChart').getContext('2d');
+const deviceChart = new Chart(deviceCtx, {{
+  type: 'doughnut',
+  data: {{
+    labels: ['Desktop','Mobile','Tablet'],
+    datasets: [{{ data: [0,0,0],
+      backgroundColor: ['#3498db','#FFC627','#9b59b6'],
+      borderColor: 'var(--card)', borderWidth: 2,
+    }}]
+  }},
+  options: {{
+    responsive: true, maintainAspectRatio: false,
+    cutout: '65%',
+    plugins: {{
+      legend: {{ display: false }},
+      tooltip: {{ callbacks: {{ label: ctx => ` ${{ctx.label}}: ${{ctx.parsed.toFixed(1)}}%` }} }},
+    }},
+  }}
+}});
+
+// ── Scatter chart ──
 const scatterCtx = document.getElementById('scatterChart').getContext('2d');
 new Chart(scatterCtx, {{
   type: 'scatter',
-  data: {{ datasets: [{{ label:'Stories',
-    data: posts.map(p => ({{ x:p.reach, y:p.depth, post:p }})),
-    backgroundColor: posts.map(p => p.composite>=65?'rgba(46,204,113,0.7)':p.composite>=40?'rgba(255,198,39,0.7)':'rgba(231,76,60,0.7)'),
+  data: {{ datasets: [{{ label: 'Stories',
+    data: posts.map(p => ({{ x: p.reach, y: p.depth, post: p }})),
+    backgroundColor: posts.map(p =>
+      p.composite>=65?'rgba(46,204,113,0.75)':
+      p.composite>=40?'rgba(255,198,39,0.75)':'rgba(231,76,60,0.75)'),
     pointRadius: 5,
   }}] }},
   options: {{
     responsive: true, maintainAspectRatio: false,
     scales: {{
-      x: {{ min:0, max:100, title:{{display:true,text:'Reach',color:'#3498db',font:{{size:11}}}}, grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
-      y: {{ min:0, max:100, title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:11}}}}, grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
+      x: {{ min:0, max:100, title:{{display:true,text:'Reach',color:'#3498db',font:{{size:10}}}},
+             grid:{{color:'rgba(255,255,255,0.04)'}}, ticks:{{color:'#888',font:{{size:9}}}} }},
+      y: {{ min:0, max:100, title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:10}}}},
+             grid:{{color:'rgba(255,255,255,0.04)'}}, ticks:{{color:'#888',font:{{size:9}}}} }},
     }},
-    plugins: {{ legend:{{display:false}}, tooltip:{{ callbacks:{{ label: ctx => ctx.raw.post.title.slice(0,40) }} }} }},
+    plugins: {{
+      legend:{{display:false}},
+      tooltip:{{ callbacks:{{ label: ctx => ctx.raw.post.title.slice(0,38) }} }},
+    }},
   }}
 }});
 
+// ── Story selection ──
 let activeRow = null;
 function selectPost(idx) {{
-  if (activeRow !== null) document.querySelectorAll('#tbody tr')[activeRow].classList.remove('active');
+  if (activeRow !== null) {{
+    const prev = document.querySelector(`tr[data-idx="${{activeRow}}"]`);
+    if (prev) prev.classList.remove('active');
+  }}
   activeRow = idx;
-  document.querySelectorAll('#tbody tr')[idx].classList.add('active');
+  const tr = document.querySelector(`tr[data-idx="${{idx}}"]`);
+  if (tr) tr.classList.add('active');
+
   const p = posts[idx];
   document.getElementById('sel-title').textContent = p.title;
-  document.getElementById('sel-meta').textContent = `${{p.section_norm}} · ${{p.views.toLocaleString()}} views · ${{p.author}}`;
+  document.getElementById('sel-meta').textContent =
+    `${{p.section_norm}} · ${{p.pub_date_display}} · ${{p.views.toLocaleString()}} views · ${{p.author}}`;
+
   radarChart.data.datasets[0].data = [p.reach, p.depth, p.discovery];
   radarChart.update();
+
+  deviceChart.data.datasets[0].data = [p.desk_pct, p.mob_pct, p.tab_pct];
+  deviceChart.update();
 }}
 
 if (posts.length > 0) selectPost(0);
 
+// ── Column sort ──
 let sortCol = 'composite', sortDir = -1;
 document.querySelectorAll('th').forEach(th => {{
   th.addEventListener('click', () => {{
     const col = th.dataset.col;
+    document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
+    th.classList.add('sorted');
     sortDir = sortCol === col ? -sortDir : -1;
     sortCol = col;
-    const sorted = [...posts].sort((a,b) => sortDir*((a[col]??0)<(b[col]??0)?-1:1));
-    tbody.innerHTML = '';
-    sorted.forEach((p,i) => {{
-      const origIdx = posts.indexOf(p);
-      const tr = document.querySelector(`tr[data-idx="${{origIdx}}"]`);
-      if (tr) tbody.appendChild(tr);
+    const rows = [...document.querySelectorAll('#tbody tr')];
+    rows.sort((a, b) => {{
+      const ai = parseInt(a.dataset.idx), bi = parseInt(b.dataset.idx);
+      const av = posts[ai][col] ?? 0, bv = posts[bi][col] ?? 0;
+      return sortDir * (av < bv ? -1 : av > bv ? 1 : 0);
     }});
+    rows.forEach(r => tbody.appendChild(r));
   }});
 }});
 </script>
@@ -581,15 +774,20 @@ def generate_dashboard(scored):
     fname = f"cronkite_report_{today}.html"
 
     posts_json = json.dumps([{
-        "url":         p["url"],
-        "title":       p["title"],
-        "author":      p["author"],
-        "section_norm":p["section_norm"],
-        "views":       p["views"],
-        "reach":       p["reach"],
-        "depth":       p["depth"],
-        "discovery":   p["discovery"],
-        "composite":   p["composite"],
+        "url":             p["url"],
+        "title":           p["title"],
+        "author":          p["author"],
+        "section_norm":    p["section_norm"],
+        "pub_date":        p["pub_date"],
+        "pub_date_display":p["pub_date_display"],
+        "views":           p["views"],
+        "reach":           p["reach"],
+        "depth":           p["depth"],
+        "discovery":       p["discovery"],
+        "composite":       p["composite"],
+        "mob_pct":         p["mob_pct"],
+        "desk_pct":        p["desk_pct"],
+        "tab_pct":         p["tab_pct"],
     } for p in scored], indent=2)
 
     depth_label = scored[0]["depth_label"] if scored else "Avg. Engaged Minutes"
@@ -615,9 +813,9 @@ Your story published this week has been scored by the Cronkite engagement system
 
 ENGAGEMENT SCORE: {composite}/100  (vs. {section_norm} section historical average)
 
-  Reach      {reach}/100  — how many readers found your story
-  Depth      {depth}/100  — how long readers stayed engaged
-  Discovery  {discovery}/100 — how much traffic came from search
+  Depth      {depth}/100  (50%) — avg. time readers spent on your story
+  Reach      {reach}/100  (30%) — how many readers found it
+  Discovery  {discovery}/100  (20%) — % of traffic that came from search
 
 A score of 50 means exactly average for {section_norm}. A 70 means you
 outperformed 70% of {section_norm} stories published Dec 2024–Jul 2026.
@@ -631,7 +829,6 @@ def send_author_email(post, smtp_email, smtp_password):
     recipient = AUTHOR_EMAILS.get(author)
     if not recipient:
         return
-
     pub = post.get("pub_date", "")
     try:
         pub_dt = datetime.datetime.fromisoformat(pub.replace("Z", ""))
@@ -640,17 +837,17 @@ def send_author_email(post, smtp_email, smtp_password):
             return
     except Exception:
         pass
-
     first = author.split()[0] if author else "there"
-    body  = EMAIL_TEMPLATE.format(first_name=first, **{k: post[k] for k in
-            ["title","url","composite","section_norm","reach","depth","discovery"]})
-
+    body  = EMAIL_TEMPLATE.format(
+        first_name=first, title=post["title"], url=post["url"],
+        composite=post["composite"], section_norm=post["section_norm"],
+        reach=post["reach"], depth=post["depth"], discovery=post["discovery"],
+    )
     msg = MIMEMultipart()
     msg["From"]    = smtp_email
     msg["To"]      = recipient
     msg["Subject"] = f"Your story engagement score: {post['composite']}/100"
     msg.attach(MIMEText(body, "plain"))
-
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
         s.login(smtp_email, smtp_password)
         s.sendmail(smtp_email, recipient, msg.as_string())
@@ -668,24 +865,18 @@ def send_all_author_emails(scored):
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    print("\nFetching posts from Parse.ly...")
+    print("\nFetching posts from Parse.ly (stories published 7–14 days ago)...")
     posts = get_posts()
-
     if not posts:
-        print("No posts found for the past 7 days.")
+        print("No posts found.")
         return
-
     print(f"\nScoring {len(posts)} articles...")
     scored = score_articles(posts)
-
     print_report(scored)
-
     print("\nGenerating dashboard...")
     generate_dashboard(scored)
-
     print("\nSending author emails...")
     send_all_author_emails(scored)
-
     print("\nDone.")
 
 if __name__ == "__main__":
