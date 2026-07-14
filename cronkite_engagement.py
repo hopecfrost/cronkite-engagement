@@ -269,7 +269,7 @@ def score_articles(posts):
                                baselines["search_pct_mean"],
                                baselines["search_pct_std"])
 
-        composite = round((reach + depth + discovery) / 3.0, 1)
+        composite = round(reach * 0.30 + depth * 0.50 + discovery * 0.20, 1)
 
         scored.append({
             **post,
@@ -290,7 +290,7 @@ def print_report(scored):
     print(f"\n{'='*80}")
     print(f"  CRONKITE ENGAGEMENT REPORT  —  {now}")
     print(f"{'='*80}")
-    print(f"  Scoring: Reach 33% | Depth 33% | Discovery 33%")
+    print(f"  Scoring: Reach 30% | Depth 50% | Discovery 20%")
     print(f"  All scores are section-relative percentiles (0–100)")
     print(f"  Baselines: Dec 2024–Jul 2026  |  N=9,483 stories")
     print(f"{'='*80}\n")
@@ -467,7 +467,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <strong style="color:#3498db">Reach</strong> — log(views) vs. section avg<br>
       <strong style="color:#9b59b6">Depth</strong> — {depth_label} vs. section avg<br>
       <strong style="color:#1abc9c">Discovery</strong> — % traffic from search vs. section avg<br><br>
-      Composite = equal thirds (33 / 33 / 33).
+      Composite = Depth 50% · Reach 30% · Discovery 20%.
     </div>
   </div>
 </div>
