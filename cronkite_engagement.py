@@ -181,12 +181,13 @@ def get_posts():
     Pull last 7 days of posts via 3 API calls (sorted by views / avg_engaged /
     search_refs) and join results by URL so each article gets all metrics.
     """
-    now      = datetime.datetime.utcnow()
-    week_ago = now - datetime.timedelta(days=LOOKBACK_DAYS)
+    now        = datetime.datetime.utcnow()
+    week_ago   = now - datetime.timedelta(days=7)
+    two_weeks  = now - datetime.timedelta(days=14)
     date_params = {
-        "pub_date_start": week_ago.strftime("%Y-%m-%d"),
-        "pub_date_end":   now.strftime("%Y-%m-%d"),
-        "period_start":   week_ago.strftime("%Y-%m-%d"),
+        "pub_date_start": two_weeks.strftime("%Y-%m-%d"),
+        "pub_date_end":   week_ago.strftime("%Y-%m-%d"),
+        "period_start":   two_weeks.strftime("%Y-%m-%d"),
         "period_end":     now.strftime("%Y-%m-%d"),
     }
 
@@ -415,7 +416,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <header>
   <div>
     <h1>Cronkite News — Engagement Report</h1>
-    <div class="meta">Week of {report_date} &nbsp;|&nbsp; {n_posts} stories &nbsp;|&nbsp; Section-relative scoring</div>
+    <div class="meta">Stories from the week of {report_date} &nbsp;|&nbsp; scored after 7+ days &nbsp;|&nbsp; {n_posts} stories</div>
   </div>
   <span class="badge">Auto-generated</span>
 </header>
