@@ -33,6 +33,7 @@
     font-size: 0.7rem; font-weight: 700;
     padding: 3px 8px; border-radius: 99px;
     text-transform: uppercase; letter-spacing: 0.05em;
+    margin-left: auto;
   }
 
   .layout { display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px; }
@@ -61,9 +62,9 @@
     padding: 3px 10px; border-radius: 99px;
     font-weight: 700; font-size: 0.8rem;
   }
-  .score-high   { background: rgba(39,174,96,0.2);  color: #2ecc71; }
-  .score-mid    { background: rgba(255,198,39,0.2); color: var(--gold); }
-  .score-low    { background: rgba(231,76,60,0.15); color: #e74c3c; }
+  .score-high { background: rgba(39,174,96,0.2);  color: #2ecc71; }
+  .score-mid  { background: rgba(255,198,39,0.2); color: var(--gold); }
+  .score-low  { background: rgba(231,76,60,0.15); color: #e74c3c; }
 
   .bar-wrap { display: flex; align-items: center; gap: 6px; }
   .bar { height: 6px; border-radius: 3px; background: var(--border); flex: 1; overflow: hidden; }
@@ -98,14 +99,12 @@
 <header>
   <div>
     <h1>Cronkite News — Engagement Report</h1>
-    <div class="meta">Week of 2026-07-14 &nbsp;|&nbsp; 22 stories &nbsp;|&nbsp; Section-relative scoring</div>
+    <div class="meta">Week of 2026-07-14 &nbsp;|&nbsp; 23 stories &nbsp;|&nbsp; Section-relative scoring</div>
   </div>
   <span class="badge">Auto-generated</span>
 </header>
 
 <div class="layout">
-
-  <!-- Left: ranked table -->
   <div class="card">
     <h2>Story Rankings</h2>
     <div class="pill-legend">
@@ -118,7 +117,7 @@
         <tr>
           <th data-col="rank">#</th>
           <th data-col="title">Story</th>
-          <th data-col="section">Section</th>
+          <th data-col="section_norm">Section</th>
           <th data-col="views">Views</th>
           <th data-col="reach">Reach</th>
           <th data-col="depth">Depth</th>
@@ -130,7 +129,6 @@
     </table>
   </div>
 
-  <!-- Right: charts -->
   <div class="side-panel">
     <div class="card">
       <h2>Pillar Breakdown</h2>
@@ -149,10 +147,10 @@
     <div class="card" style="font-size:0.75rem; color:var(--muted); line-height:1.6;">
       <h2>Methodology</h2>
       Each score is a <strong style="color:var(--text)">section-relative percentile</strong> (0–100)
-      comparing this story against its section's Jan–Jun 2026 historical baseline.<br><br>
-      <strong style="color:#3498db">Reach</strong> — log(views), vs. section avg<br>
-      <strong style="color:#9b59b6">Depth</strong> — Avg. Engaged Minutes, vs. section avg<br>
-      <strong style="color:#1abc9c">Discovery</strong> — % traffic from search, vs. section avg<br><br>
+      comparing this story against its section's Dec 2024–Jul 2026 historical baseline (N=9,483).<br><br>
+      <strong style="color:#3498db">Reach</strong> — log(views) vs. section avg<br>
+      <strong style="color:#9b59b6">Depth</strong> — Avg. Engaged Minutes vs. section avg<br>
+      <strong style="color:#1abc9c">Discovery</strong> — % traffic from search vs. section avg<br><br>
       Composite = equal thirds (33 / 33 / 33).
     </div>
   </div>
@@ -167,11 +165,11 @@ const posts = [
     "title": "Can Stanton avoid the fate of other House Democrats ousted by left-wing insurgents?",
     "author": "Hayli Griffin",
     "section_norm": "Politics & Policy",
-    "views": 1040,
-    "reach": 99.5,
-    "depth": 89.6,
-    "discovery": 68.2,
-    "composite": 85.8
+    "views": 1043,
+    "reach": 95.0,
+    "depth": 94.5,
+    "discovery": 56.6,
+    "composite": 82.0
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/08/phoenix-mercury-regroup-before-indiana-fever-rematch/?itm_source=parsely-api",
@@ -179,32 +177,32 @@ const posts = [
     "author": "Tony Carter",
     "section_norm": "Sports",
     "views": 1200,
-    "reach": 99.9,
-    "depth": 86.1,
-    "discovery": 63.2,
-    "composite": 83.1
-  },
-  {
-    "url": "http://cronkitenews.azpbs.org/2026/07/07/asu-football-big-12-media-days/?itm_source=parsely-api",
-    "title": "Big 12 media days: ASU using World Cup experience as showcase for Union Jack Classic in London",
-    "author": "Elijah Grayson Murray",
-    "section_norm": "Sports",
-    "views": 157,
-    "reach": 91.8,
-    "depth": 99.2,
-    "discovery": 42.5,
-    "composite": 77.8
+    "reach": 98.0,
+    "depth": 91.2,
+    "discovery": 39.8,
+    "composite": 76.3
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/08/las-vegas-nba-expansion-jerry-colangelo/?itm_source=parsely-api",
     "title": "Jerry Colangelo aims to bring NBA expansion franchise to Las Vegas",
     "author": "Tyler Piester",
     "section_norm": "Sports",
-    "views": 792,
-    "reach": 99.6,
-    "depth": 65.6,
-    "discovery": 67.4,
-    "composite": 77.5
+    "views": 793,
+    "reach": 96.1,
+    "depth": 69.5,
+    "discovery": 43.6,
+    "composite": 69.7
+  },
+  {
+    "url": "http://cronkitenews.azpbs.org/2026/07/08/veterans-cuts-trump/?itm_source=parsely-api",
+    "title": "Veterans see hypocrisy in military tributes as benefit cuts take hold",
+    "author": "Emma Whitney",
+    "section_norm": "Politics & Policy",
+    "views": 20371,
+    "reach": 99.9,
+    "depth": 79.4,
+    "discovery": 24.0,
+    "composite": 67.8
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/09/chris-johnson-als-diagnosis-renews-head-trauma-discussion/?itm_source=parsely-api",
@@ -212,21 +210,21 @@ const posts = [
     "author": "Tony Carter",
     "section_norm": "Sports",
     "views": 446,
-    "reach": 98.7,
-    "depth": 95.7,
-    "discovery": 24.4,
-    "composite": 72.9
+    "reach": 91.1,
+    "depth": 98.4,
+    "discovery": 13.3,
+    "composite": 67.6
   },
   {
-    "url": "http://cronkitenews.azpbs.org/2026/07/13/roch-cholowsky-mlb-draft-arizona/?itm_source=parsely-api",
-    "title": "A whole community goes No. 1 in MLB Draft alongside Chandler\u2019s Roch Cholowsky",
-    "author": "Seth Schwartzberg",
+    "url": "http://cronkitenews.azpbs.org/2026/07/07/asu-football-big-12-media-days/?itm_source=parsely-api",
+    "title": "Big 12 media days: ASU using World Cup experience as showcase for Union Jack Classic in London",
+    "author": "Elijah Grayson Murray",
     "section_norm": "Sports",
-    "views": 114,
-    "reach": 87.2,
-    "depth": 93.5,
-    "discovery": 29.1,
-    "composite": 69.9
+    "views": 157,
+    "reach": 72.6,
+    "depth": 99.9,
+    "discovery": 24.4,
+    "composite": 65.6
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/08/phoenix-2026-world-cup-host-city-decision/?itm_source=parsely-api",
@@ -235,31 +233,9 @@ const posts = [
     "section_norm": "Sports",
     "views": 10594,
     "reach": 99.9,
-    "depth": 67.5,
-    "discovery": 38.1,
-    "composite": 68.5
-  },
-  {
-    "url": "http://cronkitenews.azpbs.org/2026/07/07/arizona-diamondbacks-michael-soroka-regains-form/?itm_source=parsely-api",
-    "title": "Michael Soroka regains form with Diamondbacks before injury",
-    "author": "Tyler Piester",
-    "section_norm": "Sports",
-    "views": 358,
-    "reach": 97.9,
-    "depth": 58.2,
-    "discovery": 49.4,
-    "composite": 68.5
-  },
-  {
-    "url": "http://cronkitenews.azpbs.org/2026/07/08/veterans-cuts-trump/?itm_source=parsely-api",
-    "title": "Veterans see hypocrisy in military tributes as benefit cuts take hold",
-    "author": "Emma Whitney",
-    "section_norm": "Politics & Policy",
-    "views": 20358,
-    "reach": 99.9,
-    "depth": 73.2,
-    "discovery": 29.6,
-    "composite": 67.6
+    "depth": 71.8,
+    "discovery": 21.6,
+    "composite": 64.4
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/10/roch-cholowsky-top-mlb-draft-prospect/?itm_source=parsely-api",
@@ -267,32 +243,21 @@ const posts = [
     "author": "Seth Schwartzberg",
     "section_norm": "Sports",
     "views": 273,
-    "reach": 96.6,
-    "depth": 93.8,
-    "discovery": 10.8,
-    "composite": 67.1
+    "reach": 84.0,
+    "depth": 97.2,
+    "discovery": 6.0,
+    "composite": 62.4
   },
   {
-    "url": "http://cronkitenews.azpbs.org/2026/07/09/world-cup-brings-global-fans-together/?itm_source=parsely-api",
-    "title": "World Cup adds international spice to America\u2019s melting pot",
-    "author": "Matthew Badger",
-    "section_norm": "Sports",
-    "views": 124,
-    "reach": 88.6,
-    "depth": 62.6,
-    "discovery": 44.9,
-    "composite": 65.4
-  },
-  {
-    "url": "http://cronkitenews.azpbs.org/2026/07/08/cardinals-darius-robinson-eyes-breakout-third-season/?itm_source=parsely-api",
-    "title": "Cardinals DL Darius Robinson embraces fresh mindset entering Year 3",
-    "author": "Evan Slotnik",
-    "section_norm": "Sports",
-    "views": 100,
-    "reach": 85.0,
-    "depth": 64.3,
-    "discovery": 37.2,
-    "composite": 62.2
+    "url": "http://cronkitenews.azpbs.org/2026/07/08/arizona-solar-farm-gives-burrowing-owls-new-home/?itm_source=parsely-api",
+    "title": "How burrowing owls found safe harbor at a different kind of farm",
+    "author": "Samad Khan",
+    "section_norm": "Sustainability",
+    "views": 1627,
+    "reach": 99.9,
+    "depth": 82.6,
+    "discovery": 2.6,
+    "composite": 61.7
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/09/save-database-citizen-voters/?itm_source=parsely-api",
@@ -300,21 +265,43 @@ const posts = [
     "author": "Katie O'Shaughnessy",
     "section_norm": "Election 2026",
     "views": 232,
-    "reach": 97.1,
-    "depth": 76.5,
-    "discovery": 11.9,
-    "composite": 61.8
+    "reach": 87.5,
+    "depth": 87.1,
+    "discovery": 8.5,
+    "composite": 61.0
   },
   {
-    "url": "http://cronkitenews.azpbs.org/2026/07/13/phoenix-suns-commit-depth-youth-culture/?itm_source=parsely-api",
-    "title": "Suns double down after overachieving season, commit to depth, youth, culture",
-    "author": "Addison Lenhart",
+    "url": "http://cronkitenews.azpbs.org/2026/07/07/arizona-diamondbacks-michael-soroka-regains-form/?itm_source=parsely-api",
+    "title": "Michael Soroka regains form with Diamondbacks before injury",
+    "author": "Tyler Piester",
     "section_norm": "Sports",
-    "views": 62,
-    "reach": 74.6,
-    "depth": 93.1,
-    "discovery": 16.9,
-    "composite": 61.5
+    "views": 358,
+    "reach": 88.3,
+    "depth": 60.8,
+    "discovery": 29.1,
+    "composite": 59.4
+  },
+  {
+    "url": "http://cronkitenews.azpbs.org/2026/07/13/roch-cholowsky-mlb-draft-arizona/?itm_source=parsely-api",
+    "title": "A whole community goes No. 1 in MLB Draft alongside Chandler\u2019s Roch Cholowsky",
+    "author": "Seth Schwartzberg",
+    "section_norm": "Sports",
+    "views": 114,
+    "reach": 64.5,
+    "depth": 97.0,
+    "discovery": 16.0,
+    "composite": 59.2
+  },
+  {
+    "url": "http://cronkitenews.azpbs.org/2026/07/09/doj-memo-disability-institutionalization/?itm_source=parsely-api",
+    "title": "Advocates alarmed as DOJ backs states challenging mandate to keep people with mental disability out of institutions",
+    "author": "Kyle Sekenski",
+    "section_norm": "Health",
+    "views": 464,
+    "reach": 96.4,
+    "depth": 61.0,
+    "discovery": 9.8,
+    "composite": 55.7
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/10/roller-derby-still-has-home-in-arizona/?itm_source=parsely-api",
@@ -322,43 +309,65 @@ const posts = [
     "author": "Shelby Evans",
     "section_norm": "Sports",
     "views": 103,
-    "reach": 85.5,
-    "depth": 88.1,
-    "discovery": 10.2,
-    "composite": 61.3
+    "reach": 61.7,
+    "depth": 92.9,
+    "discovery": 5.6,
+    "composite": 53.4
+  },
+  {
+    "url": "http://cronkitenews.azpbs.org/2026/07/09/world-cup-brings-global-fans-together/?itm_source=parsely-api",
+    "title": "World Cup adds international spice to America\u2019s melting pot",
+    "author": "Matthew Badger",
+    "section_norm": "Sports",
+    "views": 124,
+    "reach": 66.7,
+    "depth": 66.0,
+    "discovery": 26.0,
+    "composite": 52.9
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/13/drones-security-indycar-freedom250/?itm_source=parsely-api",
     "title": "Drone waivers for DC IndyCar race near Capitol and FBI raise security concerns",
     "author": "Carsten Oyer",
     "section_norm": "Politics & Policy",
-    "views": 330,
-    "reach": 96.0,
-    "depth": 48.9,
-    "discovery": 26.3,
-    "composite": 57.1
+    "views": 336,
+    "reach": 83.5,
+    "depth": 51.3,
+    "discovery": 20.7,
+    "composite": 51.8
   },
   {
-    "url": "http://cronkitenews.azpbs.org/2026/07/08/arizona-solar-farm-gives-burrowing-owls-new-home/?itm_source=parsely-api",
-    "title": "How burrowing owls found safe harbor at a different kind of farm",
-    "author": "Samad Khan",
-    "section_norm": "Sustainability",
-    "views": 1624,
-    "reach": 99.9,
-    "depth": 64.6,
-    "discovery": 2.7,
-    "composite": 55.7
+    "url": "http://cronkitenews.azpbs.org/2026/07/13/phoenix-suns-commit-depth-youth-culture/?itm_source=parsely-api",
+    "title": "Suns double down after overachieving season, commit to depth, youth, culture",
+    "author": "Addison Lenhart",
+    "section_norm": "Sports",
+    "views": 62,
+    "reach": 47.5,
+    "depth": 96.8,
+    "discovery": 9.2,
+    "composite": 51.2
   },
   {
-    "url": "http://cronkitenews.azpbs.org/2026/07/09/doj-memo-disability-institutionalization/?itm_source=parsely-api",
-    "title": "Advocates alarmed as DOJ backs states challenging mandate to keep people with mental disability out of institutions",
-    "author": "Kyle Sekenski",
-    "section_norm": "Health",
-    "views": 463,
-    "reach": 99.3,
-    "depth": 50.8,
-    "discovery": 12.5,
-    "composite": 54.2
+    "url": "http://cronkitenews.azpbs.org/2026/07/08/cardinals-darius-robinson-eyes-breakout-third-season/?itm_source=parsely-api",
+    "title": "Cardinals DL Darius Robinson embraces fresh mindset entering Year 3",
+    "author": "Evan Slotnik",
+    "section_norm": "Sports",
+    "views": 100,
+    "reach": 60.9,
+    "depth": 68.0,
+    "discovery": 21.0,
+    "composite": 50.0
+  },
+  {
+    "url": "http://cronkitenews.azpbs.org/2026/07/13/lgbtq-veteran-builds-safe-space/?itm_source=parsely-api",
+    "title": "He hid his identity under \u2018Don\u2019t Ask, Don\u2019t Tell.\u2019 Now he\u2019s building a safe space for LGBTQ+ veterans.",
+    "author": "Eleri Mosier",
+    "section_norm": "Sports",
+    "views": 106,
+    "reach": 62.5,
+    "depth": 59.0,
+    "discovery": 1.8,
+    "composite": 41.1
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/08/phoenix-suns-bring-back-williams-goodwin-gillespie/?itm_source=parsely-api",
@@ -366,21 +375,10 @@ const posts = [
     "author": "Jadyn Wilgus",
     "section_norm": "Sports",
     "views": 208,
-    "reach": 94.6,
-    "depth": 27.6,
-    "discovery": 29.7,
-    "composite": 50.6
-  },
-  {
-    "url": "http://cronkitenews.azpbs.org/2026/07/13/lgbtq-veteran-builds-safe-space/?itm_source=parsely-api",
-    "title": "He hid his identity under \u2018Don\u2019t Ask, Don\u2019t Tell.\u2019 Now he\u2019s building a safe space for LGBTQ+ veterans.",
-    "author": "Eleri Mosier",
-    "section_norm": "Sports",
-    "views": 103,
-    "reach": 85.5,
-    "depth": 56.8,
-    "discovery": 3.0,
-    "composite": 48.4
+    "reach": 78.8,
+    "depth": 23.7,
+    "discovery": 16.4,
+    "composite": 39.6
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/08/arizona-quarterback-noah-fifita-eyes-big-12-ambitions/?itm_source=parsely-api",
@@ -388,10 +386,10 @@ const posts = [
     "author": "Elijah Grayson Murray",
     "section_norm": "Sports",
     "views": 64,
-    "reach": 75.3,
-    "depth": 57.5,
-    "discovery": 10.3,
-    "composite": 47.7
+    "reach": 48.4,
+    "depth": 59.9,
+    "discovery": 5.7,
+    "composite": 38.0
   },
   {
     "url": "http://cronkitenews.azpbs.org/2026/07/09/mlb-pitchers-balance-new-pitches-with-consistency/?itm_source=parsely-api",
@@ -399,35 +397,38 @@ const posts = [
     "author": "Seth Schwartzberg",
     "section_norm": "Sports",
     "views": 44,
-    "reach": 65.3,
-    "depth": 50.0,
-    "discovery": 2.9,
-    "composite": 39.4
+    "reach": 38.0,
+    "depth": 50.7,
+    "discovery": 1.8,
+    "composite": 30.2
+  },
+  {
+    "url": "http://cronkitenews.azpbs.org/2026/07/14/billy-cronin-basketball-dream/?itm_source=parsely-api",
+    "title": "Billy Cronin defies odds, amputation to chase basketball dream at Canyon del Oro",
+    "author": "Elijah Grayson Murray",
+    "section_norm": "Sports",
+    "views": 1,
+    "reach": 0.5,
+    "depth": 0.0,
+    "discovery": 1.0,
+    "composite": 0.5
   }
 ];
 
 function scoreClass(s) {
-  if (s >= 65) return 'score-high';
-  if (s >= 40) return 'score-mid';
-  return 'score-low';
+  return s >= 65 ? 'score-high' : s >= 40 ? 'score-mid' : 'score-low';
 }
-
 function bar(val, cls) {
-  return `<div class="bar-wrap">
-    <div class="bar"><div class="bar-fill ${cls}" style="width:${val}%"></div></div>
-    <span class="bar-val">${Math.round(val)}</span>
-  </div>`;
+  return `<div class="bar-wrap"><div class="bar"><div class="bar-fill ${cls}" style="width:${val}%"></div></div><span class="bar-val">${Math.round(val)}</span></div>`;
 }
 
-// Build table
 const tbody = document.getElementById('tbody');
 posts.forEach((p, i) => {
   const tr = document.createElement('tr');
   tr.dataset.idx = i;
   tr.innerHTML = `
     <td style="color:var(--muted);font-size:0.75rem">${i+1}</td>
-    <td><a href="${p.url}" target="_blank" style="color:#fff;text-decoration:none;font-size:0.83rem"
-          onclick="event.stopPropagation()">${p.title.length>55 ? p.title.slice(0,55)+'…' : p.title}</a></td>
+    <td><a href="${p.url}" target="_blank" style="color:#fff;text-decoration:none;font-size:0.83rem" onclick="event.stopPropagation()">${p.title.length>55?p.title.slice(0,55)+'…':p.title}</a></td>
     <td style="color:var(--muted);font-size:0.75rem;white-space:nowrap">${p.section_norm}</td>
     <td style="color:var(--muted);font-size:0.78rem">${p.views.toLocaleString()}</td>
     <td>${bar(p.reach,'bar-reach')}</td>
@@ -439,65 +440,45 @@ posts.forEach((p, i) => {
   tbody.appendChild(tr);
 });
 
-// Radar chart
 const radarCtx = document.getElementById('radarChart').getContext('2d');
 const radarChart = new Chart(radarCtx, {
   type: 'radar',
   data: {
     labels: ['Reach','Depth','Discovery'],
-    datasets: [{
-      label: 'Score',
-      data: [0,0,0],
-      backgroundColor: 'rgba(255,198,39,0.15)',
-      borderColor: '#FFC627',
-      pointBackgroundColor: '#FFC627',
-      borderWidth: 2,
-    }]
+    datasets: [{ label: 'Score', data: [0,0,0],
+      backgroundColor: 'rgba(255,198,39,0.15)', borderColor: '#FFC627',
+      pointBackgroundColor: '#FFC627', borderWidth: 2 }]
   },
   options: {
     responsive: true, maintainAspectRatio: false,
-    scales: { r: {
-      min: 0, max: 100,
-      ticks: { stepSize: 25, color: '#888', font: {size:10} },
-      grid: { color: 'rgba(255,255,255,0.08)' },
-      pointLabels: { color: '#e0e0e0', font: {size:12} },
-      angleLines: { color: 'rgba(255,255,255,0.08)' },
+    scales: { r: { min:0, max:100,
+      ticks: { stepSize:25, color:'#888', font:{size:10} },
+      grid: { color:'rgba(255,255,255,0.08)' },
+      pointLabels: { color:'#e0e0e0', font:{size:12} },
+      angleLines: { color:'rgba(255,255,255,0.08)' },
     } },
-    plugins: { legend: { display: false } },
+    plugins: { legend: { display:false } },
   }
 });
 
-// Scatter chart
 const scatterCtx = document.getElementById('scatterChart').getContext('2d');
-const scatterChart = new Chart(scatterCtx, {
+new Chart(scatterCtx, {
   type: 'scatter',
-  data: {
-    datasets: [{
-      label: 'Stories',
-      data: posts.map(p => ({ x: p.reach, y: p.depth, post: p })),
-      backgroundColor: posts.map(p =>
-        p.composite >= 65 ? 'rgba(46,204,113,0.7)' :
-        p.composite >= 40 ? 'rgba(255,198,39,0.7)' :
-                            'rgba(231,76,60,0.7)'),
-      pointRadius: 5,
-    }]
-  },
+  data: { datasets: [{ label:'Stories',
+    data: posts.map(p => ({ x:p.reach, y:p.depth, post:p })),
+    backgroundColor: posts.map(p => p.composite>=65?'rgba(46,204,113,0.7)':p.composite>=40?'rgba(255,198,39,0.7)':'rgba(231,76,60,0.7)'),
+    pointRadius: 5,
+  }] },
   options: {
     responsive: true, maintainAspectRatio: false,
     scales: {
-      x: { min:0, max:100, title:{display:true,text:'Reach',color:'#3498db',font:{size:11}},
-             grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#888'} },
-      y: { min:0, max:100, title:{display:true,text:'Depth',color:'#9b59b6',font:{size:11}},
-             grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#888'} },
+      x: { min:0, max:100, title:{display:true,text:'Reach',color:'#3498db',font:{size:11}}, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#888'} },
+      y: { min:0, max:100, title:{display:true,text:'Depth',color:'#9b59b6',font:{size:11}}, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#888'} },
     },
-    plugins: {
-      legend: { display:false },
-      tooltip: { callbacks: { label: ctx => ctx.raw.post.title.slice(0,40) } },
-    },
+    plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.raw.post.title.slice(0,40) } } },
   }
 });
 
-// Selection
 let activeRow = null;
 function selectPost(idx) {
   if (activeRow !== null) document.querySelectorAll('#tbody tr')[activeRow].classList.remove('active');
@@ -505,27 +486,24 @@ function selectPost(idx) {
   document.querySelectorAll('#tbody tr')[idx].classList.add('active');
   const p = posts[idx];
   document.getElementById('sel-title').textContent = p.title;
-  document.getElementById('sel-meta').textContent =
-    `${p.section_norm} · ${p.views.toLocaleString()} views · ${p.author}`;
+  document.getElementById('sel-meta').textContent = `${p.section_norm} · ${p.views.toLocaleString()} views · ${p.author}`;
   radarChart.data.datasets[0].data = [p.reach, p.depth, p.discovery];
   radarChart.update();
 }
 
-// Auto-select top story
 if (posts.length > 0) selectPost(0);
 
-// Column sort
 let sortCol = 'composite', sortDir = -1;
 document.querySelectorAll('th').forEach(th => {
   th.addEventListener('click', () => {
     const col = th.dataset.col;
-    sortDir = (sortCol === col) ? -sortDir : -1;
+    sortDir = sortCol === col ? -sortDir : -1;
     sortCol = col;
-    const sorted = [...posts].sort((a,b) => sortDir * ((a[col]??0) < (b[col]??0) ? -1 : 1));
+    const sorted = [...posts].sort((a,b) => sortDir*((a[col]??0)<(b[col]??0)?-1:1));
     tbody.innerHTML = '';
-    sorted.forEach((p, i) => {
+    sorted.forEach((p,i) => {
       const origIdx = posts.indexOf(p);
-      const tr = tbody.querySelector(`tr[data-idx="${origIdx}"]`);
+      const tr = document.querySelector(`tr[data-idx="${origIdx}"]`);
       if (tr) tbody.appendChild(tr);
     });
   });
