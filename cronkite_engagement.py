@@ -7,8 +7,8 @@ Scores recently published articles on three pillars (equal thirds):
   Depth      — avg. engaged minutes (or recirculation fallback), vs. baseline
   Discovery  — % traffic from search, vs. section baseline
 
-Section baselines are pre-computed from a Jan–Jun 2026 Parse.ly CSV export
-(10,000 stories). Each story is z-scored against its own section's history
+Section baselines are pre-computed from a Dec 2024–Jul 2026 Parse.ly CSV export
+(9,483 stories). Each story is z-scored against its own section's history
 and converted to a 0–100 percentile, so Sports vs. Sports, Politics vs. Politics.
 """
 
@@ -31,105 +31,115 @@ SECTION_MAP = {
     "Politics": "Politics & Policy",
 }
 
-# ── Historical baselines (Jan–Jun 2026, N=5,727 stories with ≥5 views) ───────
+# ── Historical baselines (Dec 2024–Jul 2026, N=9,483 stories with ≥5 views) ──
 # Metrics: log(views+1), avg engaged minutes, search_refs/views
 SECTION_BASELINES = {
     "Borderlands": {
-        "log_views_mean": 3.392171, "log_views_std": 1.673097,
-        "avg_min_mean":   0.784076, "avg_min_std":   0.584826,
-        "search_pct_mean":0.387499, "search_pct_std":0.200671,
+        "log_views_mean": 3.671606, "log_views_std": 1.436332,
+        "avg_min_mean":   0.697908, "avg_min_std":   0.611949,
+        "search_pct_mean":0.460599, "search_pct_std":0.210653,
     },
     "Consumer": {
-        "log_views_mean": 2.699786, "log_views_std": 1.056338,
-        "avg_min_mean":   0.675313, "avg_min_std":   0.624236,
-        "search_pct_mean":0.394898, "search_pct_std":0.194016,
+        "log_views_mean": 3.219035, "log_views_std": 0.991867,
+        "avg_min_mean":   0.625226, "avg_min_std":   0.556691,
+        "search_pct_mean":0.480429, "search_pct_std":0.217487,
     },
     "Editor's Picks": {
-        "log_views_mean": 3.012368, "log_views_std": 1.116498,
-        "avg_min_mean":   0.849015, "avg_min_std":   1.216072,
-        "search_pct_mean":0.419033, "search_pct_std":0.191819,
+        "log_views_mean": 3.865954, "log_views_std": 1.274660,
+        "avg_min_mean":   0.708420, "avg_min_std":   0.706522,
+        "search_pct_mean":0.438840, "search_pct_std":0.245947,
     },
     "Education": {
-        "log_views_mean": 2.300706, "log_views_std": 0.613824,
-        "avg_min_mean":   0.617887, "avg_min_std":   0.559177,
-        "search_pct_mean":0.374727, "search_pct_std":0.215951,
+        "log_views_mean": 2.982955, "log_views_std": 0.663295,
+        "avg_min_mean":   0.552804, "avg_min_std":   0.500613,
+        "search_pct_mean":0.466558, "search_pct_std":0.210623,
     },
     "Future": {
-        "log_views_mean": 2.506078, "log_views_std": 0.873671,
-        "avg_min_mean":   0.572636, "avg_min_std":   0.669512,
-        "search_pct_mean":0.464016, "search_pct_std":0.219670,
+        "log_views_mean": 3.103329, "log_views_std": 0.879452,
+        "avg_min_mean":   0.537443, "avg_min_std":   0.427121,
+        "search_pct_mean":0.522230, "search_pct_std":0.215371,
     },
     "Government": {
-        "log_views_mean": 3.076055, "log_views_std": 1.544022,
-        "avg_min_mean":   0.835559, "avg_min_std":   1.386113,
-        "search_pct_mean":0.376059, "search_pct_std":0.192622,
+        "log_views_mean": 3.252397, "log_views_std": 1.240195,
+        "avg_min_mean":   0.572901, "avg_min_std":   0.657332,
+        "search_pct_mean":0.407253, "search_pct_std":0.208569,
     },
     "Health": {
-        "log_views_mean": 3.173419, "log_views_std": 1.217133,
-        "avg_min_mean":   0.910601, "avg_min_std":   1.136368,
-        "search_pct_mean":0.381702, "search_pct_std":0.203987,
+        "log_views_mean": 3.759307, "log_views_std": 1.325098,
+        "avg_min_mean":   0.760348, "avg_min_std":   0.622188,
+        "search_pct_mean":0.430614, "search_pct_std":0.219331,
     },
     "Indian Country": {
-        "log_views_mean": 2.831174, "log_views_std": 1.100916,
-        "avg_min_mean":   0.818061, "avg_min_std":   0.772331,
-        "search_pct_mean":0.419051, "search_pct_std":0.219897,
+        "log_views_mean": 3.535323, "log_views_std": 1.144236,
+        "avg_min_mean":   0.748788, "avg_min_std":   0.629560,
+        "search_pct_mean":0.443391, "search_pct_std":0.202855,
     },
     "Legal": {
-        "log_views_mean": 2.678030, "log_views_std": 0.932649,
-        "avg_min_mean":   0.723993, "avg_min_std":   0.773026,
-        "search_pct_mean":0.398760, "search_pct_std":0.182248,
+        "log_views_mean": 3.128222, "log_views_std": 0.946644,
+        "avg_min_mean":   0.605515, "avg_min_std":   0.642207,
+        "search_pct_mean":0.445525, "search_pct_std":0.206567,
+    },
+    "Longform hero image slim": {
+        "log_views_mean": 3.743740, "log_views_std": 0.945399,
+        "avg_min_mean":   0.781611, "avg_min_std":   0.554762,
+        "search_pct_mean":0.465867, "search_pct_std":0.202534,
     },
     "Money": {
-        "log_views_mean": 2.795731, "log_views_std": 0.977346,
-        "avg_min_mean":   0.634683, "avg_min_std":   0.677319,
-        "search_pct_mean":0.397906, "search_pct_std":0.183955,
+        "log_views_mean": 3.317479, "log_views_std": 1.150074,
+        "avg_min_mean":   0.584026, "avg_min_std":   0.611846,
+        "search_pct_mean":0.452737, "search_pct_std":0.215953,
     },
     "New Long Form": {
-        "log_views_mean": 3.364925, "log_views_std": 1.057386,
-        "avg_min_mean":   1.134732, "avg_min_std":   0.948600,
-        "search_pct_mean":0.372067, "search_pct_std":0.178678,
+        "log_views_mean": 4.673951, "log_views_std": 1.420944,
+        "avg_min_mean":   1.150780, "avg_min_std":   0.690418,
+        "search_pct_mean":0.485400, "search_pct_std":0.190455,
+    },
+    "Newscast": {
+        "log_views_mean": 2.563769, "log_views_std": 0.392002,
+        "avg_min_mean":   0.597629, "avg_min_std":   0.804936,
+        "search_pct_mean":0.333642, "search_pct_std":0.237354,
     },
     "Next Gen": {
-        "log_views_mean": 2.944713, "log_views_std": 0.931226,
-        "avg_min_mean":   0.707842, "avg_min_std":   0.718319,
-        "search_pct_mean":0.426652, "search_pct_std":0.183315,
+        "log_views_mean": 3.795024, "log_views_std": 1.154852,
+        "avg_min_mean":   0.694788, "avg_min_std":   0.628472,
+        "search_pct_mean":0.483059, "search_pct_std":0.211593,
     },
     "Noticias": {
-        "log_views_mean": 2.892463, "log_views_std": 0.845092,
-        "avg_min_mean":   0.745000, "avg_min_std":   0.834512,
-        "search_pct_mean":0.384748, "search_pct_std":0.205182,
+        "log_views_mean": 3.691104, "log_views_std": 1.014322,
+        "avg_min_mean":   0.711699, "avg_min_std":   0.469350,
+        "search_pct_mean":0.512309, "search_pct_std":0.258930,
     },
     "Politics & Policy": {
-        "log_views_mean": 3.331664, "log_views_std": 1.409402,
-        "avg_min_mean":   0.705708, "avg_min_std":   0.675630,
-        "search_pct_mean":0.384509, "search_pct_std":0.180810,
+        "log_views_mean": 4.182386, "log_views_std": 1.683267,
+        "avg_min_mean":   0.669487, "avg_min_std":   0.554743,
+        "search_pct_mean":0.435819, "search_pct_std":0.209615,
     },
     "Social Justice": {
-        "log_views_mean": 2.970686, "log_views_std": 1.033295,
-        "avg_min_mean":   0.868691, "avg_min_std":   1.025006,
-        "search_pct_mean":0.411789, "search_pct_std":0.207443,
+        "log_views_mean": 3.810295, "log_views_std": 1.244262,
+        "avg_min_mean":   0.739607, "avg_min_std":   0.635379,
+        "search_pct_mean":0.460744, "search_pct_std":0.209787,
     },
     "Sports": {
-        "log_views_mean": 3.309887, "log_views_std": 1.261144,
-        "avg_min_mean":   0.737760, "avg_min_std":   0.617084,
-        "search_pct_mean":0.377031, "search_pct_std":0.174784,
+        "log_views_mean": 4.229719, "log_views_std": 1.389051,
+        "avg_min_mean":   0.729208, "avg_min_std":   0.500631,
+        "search_pct_mean":0.490636, "search_pct_std":0.211517,
     },
     "Sustainability": {
-        "log_views_mean": 2.860009, "log_views_std": 0.963413,
-        "avg_min_mean":   0.865624, "avg_min_std":   1.078021,
-        "search_pct_mean":0.402875, "search_pct_std":0.196399,
+        "log_views_mean": 3.611491, "log_views_std": 1.214433,
+        "avg_min_mean":   0.696243, "avg_min_std":   0.612033,
+        "search_pct_mean":0.438929, "search_pct_std":0.214009,
     },
     "Uncategorized": {
-        "log_views_mean": 2.526087, "log_views_std": 0.703459,
-        "avg_min_mean":   0.539763, "avg_min_std":   0.554189,
-        "search_pct_mean":0.360636, "search_pct_std":0.206526,
+        "log_views_mean": 3.119279, "log_views_std": 0.831170,
+        "avg_min_mean":   0.508384, "avg_min_std":   0.600251,
+        "search_pct_mean":0.394178, "search_pct_std":0.225519,
     },
 }
 
 BUREAU_WIDE = {
-    "log_views_mean": 3.125668, "log_views_std": 1.228543,
-    "avg_min_mean":   0.764152, "avg_min_std":   0.803275,
-    "search_pct_mean":0.389818, "search_pct_std":0.188207,
+    "log_views_mean": 3.868346, "log_views_std": 1.378027,
+    "avg_min_mean":   0.697029, "avg_min_std":   0.573032,
+    "search_pct_mean":0.462767, "search_pct_std":0.215110,
 }
 
 # ── Author email map (fill in before sending emails) ─────────────────────────
@@ -233,19 +243,19 @@ def score_articles(posts):
     depth_label = "Recirculation (fallback)" if use_recirc else "Avg. Engaged Minutes"
 
     if use_recirc:
-        print(f"  Note: avg_engaged unavailable for most posts — using recirculation rate for Depth")
+        print("  Note: avg_engaged unavailable for most posts — using recirculation rate for Depth")
 
     scored = []
     for post in posts:
         baselines, section_norm = get_baselines(post["section"])
         views = max(post["views"], 1)
 
-        # Reach
+        # Reach: log(views) vs. section baseline
         reach = z_to_pct(math.log(views + 1),
                           baselines["log_views_mean"],
                           baselines["log_views_std"])
 
-        # Depth
+        # Depth: avg_engaged minutes vs. section baseline (recirc fallback)
         if use_recirc or post["avg_engaged"] == 0:
             depth = round(min(post["recirculation_rate"] / 0.10, 1.0) * 100, 1)
         else:
@@ -253,7 +263,7 @@ def score_articles(posts):
                               baselines["avg_min_mean"],
                               baselines["avg_min_std"])
 
-        # Discovery
+        # Discovery: search % vs. section baseline
         search_pct = post["search_refs"] / views
         discovery  = z_to_pct(search_pct,
                                baselines["search_pct_mean"],
@@ -282,16 +292,16 @@ def print_report(scored):
     print(f"{'='*80}")
     print(f"  Scoring: Reach 33% | Depth 33% | Discovery 33%")
     print(f"  All scores are section-relative percentiles (0–100)")
+    print(f"  Baselines: Dec 2024–Jul 2026  |  N=9,483 stories")
     print(f"{'='*80}\n")
 
-    fmt = "{:>3}. {:<42} {:>6} {:>7} {:>7} {:>7} {:>8}  {}"
+    fmt = "{:>3}. {:<42} {:>7} {:>7} {:>7} {:>7} {:>8}  {}"
     print(fmt.format("#", "Title", "Views", "Reach", "Depth", "Discov", "SCORE", "Section"))
-    print("-" * 100)
+    print("-" * 105)
 
     for i, p in enumerate(scored[:20], 1):
-        title = p["title"][:42]
         print(fmt.format(
-            i, title,
+            i, p["title"][:42],
             f"{p['views']:,}",
             f"{p['reach']:.0f}",
             f"{p['depth']:.0f}",
@@ -300,7 +310,8 @@ def print_report(scored):
             p["section_norm"],
         ))
 
-    print(f"\n  Depth metric: {scored[0]['depth_label'] if scored else 'N/A'}")
+    if scored:
+        print(f"\n  Depth metric: {scored[0]['depth_label']}")
 
 # ── HTML Dashboard ────────────────────────────────────────────────────────────
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -338,6 +349,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     font-size: 0.7rem; font-weight: 700;
     padding: 3px 8px; border-radius: 99px;
     text-transform: uppercase; letter-spacing: 0.05em;
+    margin-left: auto;
   }}
 
   .layout {{ display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px; }}
@@ -366,9 +378,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     padding: 3px 10px; border-radius: 99px;
     font-weight: 700; font-size: 0.8rem;
   }}
-  .score-high   {{ background: rgba(39,174,96,0.2);  color: #2ecc71; }}
-  .score-mid    {{ background: rgba(255,198,39,0.2); color: var(--gold); }}
-  .score-low    {{ background: rgba(231,76,60,0.15); color: #e74c3c; }}
+  .score-high {{ background: rgba(39,174,96,0.2);  color: #2ecc71; }}
+  .score-mid  {{ background: rgba(255,198,39,0.2); color: var(--gold); }}
+  .score-low  {{ background: rgba(231,76,60,0.15); color: #e74c3c; }}
 
   .bar-wrap {{ display: flex; align-items: center; gap: 6px; }}
   .bar {{ height: 6px; border-radius: 3px; background: var(--border); flex: 1; overflow: hidden; }}
@@ -409,8 +421,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </header>
 
 <div class="layout">
-
-  <!-- Left: ranked table -->
   <div class="card">
     <h2>Story Rankings</h2>
     <div class="pill-legend">
@@ -423,7 +433,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <tr>
           <th data-col="rank">#</th>
           <th data-col="title">Story</th>
-          <th data-col="section">Section</th>
+          <th data-col="section_norm">Section</th>
           <th data-col="views">Views</th>
           <th data-col="reach">Reach</th>
           <th data-col="depth">Depth</th>
@@ -435,7 +445,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </table>
   </div>
 
-  <!-- Right: charts -->
   <div class="side-panel">
     <div class="card">
       <h2>Pillar Breakdown</h2>
@@ -454,10 +463,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="card" style="font-size:0.75rem; color:var(--muted); line-height:1.6;">
       <h2>Methodology</h2>
       Each score is a <strong style="color:var(--text)">section-relative percentile</strong> (0–100)
-      comparing this story against its section's Jan–Jun 2026 historical baseline.<br><br>
-      <strong style="color:#3498db">Reach</strong> — log(views), vs. section avg<br>
-      <strong style="color:#9b59b6">Depth</strong> — {depth_label}, vs. section avg<br>
-      <strong style="color:#1abc9c">Discovery</strong> — % traffic from search, vs. section avg<br><br>
+      comparing this story against its section's Dec 2024–Jul 2026 historical baseline (N=9,483).<br><br>
+      <strong style="color:#3498db">Reach</strong> — log(views) vs. section avg<br>
+      <strong style="color:#9b59b6">Depth</strong> — {depth_label} vs. section avg<br>
+      <strong style="color:#1abc9c">Discovery</strong> — % traffic from search vs. section avg<br><br>
       Composite = equal thirds (33 / 33 / 33).
     </div>
   </div>
@@ -469,27 +478,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 const posts = {posts_json};
 
 function scoreClass(s) {{
-  if (s >= 65) return 'score-high';
-  if (s >= 40) return 'score-mid';
-  return 'score-low';
+  return s >= 65 ? 'score-high' : s >= 40 ? 'score-mid' : 'score-low';
 }}
-
 function bar(val, cls) {{
-  return `<div class="bar-wrap">
-    <div class="bar"><div class="bar-fill ${{cls}}" style="width:${{val}}%"></div></div>
-    <span class="bar-val">${{Math.round(val)}}</span>
-  </div>`;
+  return `<div class="bar-wrap"><div class="bar"><div class="bar-fill ${{cls}}" style="width:${{val}}%"></div></div><span class="bar-val">${{Math.round(val)}}</span></div>`;
 }}
 
-// Build table
 const tbody = document.getElementById('tbody');
 posts.forEach((p, i) => {{
   const tr = document.createElement('tr');
   tr.dataset.idx = i;
   tr.innerHTML = `
     <td style="color:var(--muted);font-size:0.75rem">${{i+1}}</td>
-    <td><a href="${{p.url}}" target="_blank" style="color:#fff;text-decoration:none;font-size:0.83rem"
-          onclick="event.stopPropagation()">${{p.title.length>55 ? p.title.slice(0,55)+'…' : p.title}}</a></td>
+    <td><a href="${{p.url}}" target="_blank" style="color:#fff;text-decoration:none;font-size:0.83rem" onclick="event.stopPropagation()">${{p.title.length>55?p.title.slice(0,55)+'…':p.title}}</a></td>
     <td style="color:var(--muted);font-size:0.75rem;white-space:nowrap">${{p.section_norm}}</td>
     <td style="color:var(--muted);font-size:0.78rem">${{p.views.toLocaleString()}}</td>
     <td>${{bar(p.reach,'bar-reach')}}</td>
@@ -501,65 +502,45 @@ posts.forEach((p, i) => {{
   tbody.appendChild(tr);
 }});
 
-// Radar chart
 const radarCtx = document.getElementById('radarChart').getContext('2d');
 const radarChart = new Chart(radarCtx, {{
   type: 'radar',
   data: {{
     labels: ['Reach','Depth','Discovery'],
-    datasets: [{{
-      label: 'Score',
-      data: [0,0,0],
-      backgroundColor: 'rgba(255,198,39,0.15)',
-      borderColor: '#FFC627',
-      pointBackgroundColor: '#FFC627',
-      borderWidth: 2,
-    }}]
+    datasets: [{{ label: 'Score', data: [0,0,0],
+      backgroundColor: 'rgba(255,198,39,0.15)', borderColor: '#FFC627',
+      pointBackgroundColor: '#FFC627', borderWidth: 2 }}]
   }},
   options: {{
     responsive: true, maintainAspectRatio: false,
-    scales: {{ r: {{
-      min: 0, max: 100,
-      ticks: {{ stepSize: 25, color: '#888', font: {{size:10}} }},
-      grid: {{ color: 'rgba(255,255,255,0.08)' }},
-      pointLabels: {{ color: '#e0e0e0', font: {{size:12}} }},
-      angleLines: {{ color: 'rgba(255,255,255,0.08)' }},
+    scales: {{ r: {{ min:0, max:100,
+      ticks: {{ stepSize:25, color:'#888', font:{{size:10}} }},
+      grid: {{ color:'rgba(255,255,255,0.08)' }},
+      pointLabels: {{ color:'#e0e0e0', font:{{size:12}} }},
+      angleLines: {{ color:'rgba(255,255,255,0.08)' }},
     }} }},
-    plugins: {{ legend: {{ display: false }} }},
+    plugins: {{ legend: {{ display:false }} }},
   }}
 }});
 
-// Scatter chart
 const scatterCtx = document.getElementById('scatterChart').getContext('2d');
-const scatterChart = new Chart(scatterCtx, {{
+new Chart(scatterCtx, {{
   type: 'scatter',
-  data: {{
-    datasets: [{{
-      label: 'Stories',
-      data: posts.map(p => ({{ x: p.reach, y: p.depth, post: p }})),
-      backgroundColor: posts.map(p =>
-        p.composite >= 65 ? 'rgba(46,204,113,0.7)' :
-        p.composite >= 40 ? 'rgba(255,198,39,0.7)' :
-                            'rgba(231,76,60,0.7)'),
-      pointRadius: 5,
-    }}]
-  }},
+  data: {{ datasets: [{{ label:'Stories',
+    data: posts.map(p => ({{ x:p.reach, y:p.depth, post:p }})),
+    backgroundColor: posts.map(p => p.composite>=65?'rgba(46,204,113,0.7)':p.composite>=40?'rgba(255,198,39,0.7)':'rgba(231,76,60,0.7)'),
+    pointRadius: 5,
+  }}] }},
   options: {{
     responsive: true, maintainAspectRatio: false,
     scales: {{
-      x: {{ min:0, max:100, title:{{display:true,text:'Reach',color:'#3498db',font:{{size:11}}}},
-             grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
-      y: {{ min:0, max:100, title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:11}}}},
-             grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
+      x: {{ min:0, max:100, title:{{display:true,text:'Reach',color:'#3498db',font:{{size:11}}}}, grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
+      y: {{ min:0, max:100, title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:11}}}}, grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
     }},
-    plugins: {{
-      legend: {{ display:false }},
-      tooltip: {{ callbacks: {{ label: ctx => ctx.raw.post.title.slice(0,40) }} }},
-    }},
+    plugins: {{ legend:{{display:false}}, tooltip:{{ callbacks:{{ label: ctx => ctx.raw.post.title.slice(0,40) }} }} }},
   }}
 }});
 
-// Selection
 let activeRow = null;
 function selectPost(idx) {{
   if (activeRow !== null) document.querySelectorAll('#tbody tr')[activeRow].classList.remove('active');
@@ -567,27 +548,24 @@ function selectPost(idx) {{
   document.querySelectorAll('#tbody tr')[idx].classList.add('active');
   const p = posts[idx];
   document.getElementById('sel-title').textContent = p.title;
-  document.getElementById('sel-meta').textContent =
-    `${{p.section_norm}} · ${{p.views.toLocaleString()}} views · ${{p.author}}`;
+  document.getElementById('sel-meta').textContent = `${{p.section_norm}} · ${{p.views.toLocaleString()}} views · ${{p.author}}`;
   radarChart.data.datasets[0].data = [p.reach, p.depth, p.discovery];
   radarChart.update();
 }}
 
-// Auto-select top story
 if (posts.length > 0) selectPost(0);
 
-// Column sort
 let sortCol = 'composite', sortDir = -1;
 document.querySelectorAll('th').forEach(th => {{
   th.addEventListener('click', () => {{
     const col = th.dataset.col;
-    sortDir = (sortCol === col) ? -sortDir : -1;
+    sortDir = sortCol === col ? -sortDir : -1;
     sortCol = col;
-    const sorted = [...posts].sort((a,b) => sortDir * ((a[col]??0) < (b[col]??0) ? -1 : 1));
+    const sorted = [...posts].sort((a,b) => sortDir*((a[col]??0)<(b[col]??0)?-1:1));
     tbody.innerHTML = '';
-    sorted.forEach((p, i) => {{
+    sorted.forEach((p,i) => {{
       const origIdx = posts.indexOf(p);
-      const tr = tbody.querySelector(`tr[data-idx="${{origIdx}}"]`);
+      const tr = document.querySelector(`tr[data-idx="${{origIdx}}"]`);
       if (tr) tbody.appendChild(tr);
     }});
   }});
@@ -614,12 +592,9 @@ def generate_dashboard(scored):
     } for p in scored], indent=2)
 
     depth_label = scored[0]["depth_label"] if scored else "Avg. Engaged Minutes"
-
     html = HTML_TEMPLATE.format(
-        report_date  = today,
-        n_posts      = len(scored),
-        posts_json   = posts_json,
-        depth_label  = depth_label,
+        report_date=today, n_posts=len(scored),
+        posts_json=posts_json, depth_label=depth_label,
     )
 
     for name in (fname, "index.html"):
@@ -637,45 +612,37 @@ Your story published this week has been scored by the Cronkite engagement system
   "{title}"
   {url}
 
-ENGAGEMENT SCORE: {composite}/100  (vs. {section_norm} section average)
+ENGAGEMENT SCORE: {composite}/100  (vs. {section_norm} section historical average)
 
   Reach      {reach}/100  — how many readers found your story
   Depth      {depth}/100  — how long readers stayed engaged
   Discovery  {discovery}/100 — how much traffic came from search
 
-Scores are section-relative percentiles: a 70 means you outperformed 70% of
-{section_norm} stories published Jan–Jun 2026.
+A score of 50 means exactly average for {section_norm}. A 70 means you
+outperformed 70% of {section_norm} stories published Dec 2024–Jul 2026.
 
 Keep up the great work,
 Cronkite Audience Engagement Team
 """
 
 def send_author_email(post, smtp_email, smtp_password):
-    author = post["author"]
+    author    = post["author"]
     recipient = AUTHOR_EMAILS.get(author)
     if not recipient:
         return
 
     pub = post.get("pub_date", "")
     try:
-        pub_dt = datetime.datetime.fromisoformat(pub.replace("Z",""))
-        age_h = (datetime.datetime.utcnow() - pub_dt).total_seconds() / 3600
+        pub_dt = datetime.datetime.fromisoformat(pub.replace("Z", ""))
+        age_h  = (datetime.datetime.utcnow() - pub_dt).total_seconds() / 3600
         if not (24 <= age_h <= 72):
             return
     except Exception:
         pass
 
     first = author.split()[0] if author else "there"
-    body = EMAIL_TEMPLATE.format(
-        first_name   = first,
-        title        = post["title"],
-        url          = post["url"],
-        composite    = post["composite"],
-        section_norm = post["section_norm"],
-        reach        = post["reach"],
-        depth        = post["depth"],
-        discovery    = post["discovery"],
-    )
+    body  = EMAIL_TEMPLATE.format(first_name=first, **{k: post[k] for k in
+            ["title","url","composite","section_norm","reach","depth","discovery"]})
 
     msg = MIMEMultipart()
     msg["From"]    = smtp_email
