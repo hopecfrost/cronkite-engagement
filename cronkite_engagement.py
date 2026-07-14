@@ -1,684 +1,724 @@
+#!/usr/bin/env python3
 """
-Cronkite Sports Bureau — Engagement Scoring Script
-====================================================
-Pulls the past 7 days of articles from the Parse.ly API,
-scores each one using a weighted engagement formula,
-prints a ranked weekly report, generates an HTML dashboard,
-and emails authors their 48-hour performance report.
+Cronkite News Bureau — Engagement Scoring System
+-------------------------------------------------
+Scores recently published articles on three pillars (equal thirds):
+  Reach      — views, vs. section historical baseline
+  Depth      — avg. engaged minutes (or recirculation fallback), vs. baseline
+  Discovery  — % traffic from search, vs. section baseline
 
-Run:
-    python3 cronkite_engagement.py
-
-Email setup (one-time):
-    export SMTP_EMAIL="yourbureau@gmail.com"
-    export SMTP_PASSWORD="your-app-password"
-
-Requirements:
-    pip3 install requests
+Section baselines are pre-computed from a Jan–Jun 2026 Parse.ly CSV export
+(10,000 stories). Each story is z-scored against its own section's history
+and converted to a 0–100 percentile, so Sports vs. Sports, Politics vs. Politics.
 """
 
-import os
-import math
-import json
-import smtplib
-import requests
-from email.mime.multipart import MIMEMultipart
+import os, math, datetime, smtplib, requests
 from email.mime.text import MIMEText
-from datetime import datetime, timedelta
+from email.mime.multipart import MIMEMultipart
 
-# ── Credentials ────────────────────────────────────────────────────────────────
+# ── Credentials ───────────────────────────────────────────────────────────────
 PARSELY_KEY    = os.getenv("PARSELY_KEY")    or "cronkitenews.azpbs.org"
 PARSELY_SECRET = os.getenv("PARSELY_SECRET") or "tAytVAdJCyLdFHatqOOHLVXTrdHpUm5kQusX8ZWzHoA"
-BASE_URL = "https://api.parsely.com/v2"
+SMTP_EMAIL     = os.getenv("SMTP_EMAIL")     or ""
+SMTP_PASSWORD  = os.getenv("SMTP_PASSWORD")  or ""
 
-# ── Email config ───────────────────────────────────────────────────────────────
-SMTP_EMAIL    = os.getenv("SMTP_EMAIL", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-SMTP_SERVER   = "smtp.gmail.com"
-SMTP_PORT     = 587
+BASE_URL      = "https://api.parsely.com/v2"
+LOOKBACK_DAYS = 7
 
-# ── Author email directory — fill in with bureau staff ────────────────────────
-# Format: "Name as it appears in Parse.ly": "email@cronkite.asu.edu"
+# ── Section name normalization ────────────────────────────────────────────────
+SECTION_MAP = {
+    "Sport":    "Sports",
+    "Politics": "Politics & Policy",
+}
+
+# ── Historical baselines (Jan–Jun 2026, N=5,727 stories with ≥5 views) ───────
+# Metrics: log(views+1), avg engaged minutes, search_refs/views
+SECTION_BASELINES = {
+    "Borderlands": {
+        "log_views_mean": 3.392171, "log_views_std": 1.673097,
+        "avg_min_mean":   0.784076, "avg_min_std":   0.584826,
+        "search_pct_mean":0.387499, "search_pct_std":0.200671,
+    },
+    "Consumer": {
+        "log_views_mean": 2.699786, "log_views_std": 1.056338,
+        "avg_min_mean":   0.675313, "avg_min_std":   0.624236,
+        "search_pct_mean":0.394898, "search_pct_std":0.194016,
+    },
+    "Editor's Picks": {
+        "log_views_mean": 3.012368, "log_views_std": 1.116498,
+        "avg_min_mean":   0.849015, "avg_min_std":   1.216072,
+        "search_pct_mean":0.419033, "search_pct_std":0.191819,
+    },
+    "Education": {
+        "log_views_mean": 2.300706, "log_views_std": 0.613824,
+        "avg_min_mean":   0.617887, "avg_min_std":   0.559177,
+        "search_pct_mean":0.374727, "search_pct_std":0.215951,
+    },
+    "Future": {
+        "log_views_mean": 2.506078, "log_views_std": 0.873671,
+        "avg_min_mean":   0.572636, "avg_min_std":   0.669512,
+        "search_pct_mean":0.464016, "search_pct_std":0.219670,
+    },
+    "Government": {
+        "log_views_mean": 3.076055, "log_views_std": 1.544022,
+        "avg_min_mean":   0.835559, "avg_min_std":   1.386113,
+        "search_pct_mean":0.376059, "search_pct_std":0.192622,
+    },
+    "Health": {
+        "log_views_mean": 3.173419, "log_views_std": 1.217133,
+        "avg_min_mean":   0.910601, "avg_min_std":   1.136368,
+        "search_pct_mean":0.381702, "search_pct_std":0.203987,
+    },
+    "Indian Country": {
+        "log_views_mean": 2.831174, "log_views_std": 1.100916,
+        "avg_min_mean":   0.818061, "avg_min_std":   0.772331,
+        "search_pct_mean":0.419051, "search_pct_std":0.219897,
+    },
+    "Legal": {
+        "log_views_mean": 2.678030, "log_views_std": 0.932649,
+        "avg_min_mean":   0.723993, "avg_min_std":   0.773026,
+        "search_pct_mean":0.398760, "search_pct_std":0.182248,
+    },
+    "Money": {
+        "log_views_mean": 2.795731, "log_views_std": 0.977346,
+        "avg_min_mean":   0.634683, "avg_min_std":   0.677319,
+        "search_pct_mean":0.397906, "search_pct_std":0.183955,
+    },
+    "New Long Form": {
+        "log_views_mean": 3.364925, "log_views_std": 1.057386,
+        "avg_min_mean":   1.134732, "avg_min_std":   0.948600,
+        "search_pct_mean":0.372067, "search_pct_std":0.178678,
+    },
+    "Next Gen": {
+        "log_views_mean": 2.944713, "log_views_std": 0.931226,
+        "avg_min_mean":   0.707842, "avg_min_std":   0.718319,
+        "search_pct_mean":0.426652, "search_pct_std":0.183315,
+    },
+    "Noticias": {
+        "log_views_mean": 2.892463, "log_views_std": 0.845092,
+        "avg_min_mean":   0.745000, "avg_min_std":   0.834512,
+        "search_pct_mean":0.384748, "search_pct_std":0.205182,
+    },
+    "Politics & Policy": {
+        "log_views_mean": 3.331664, "log_views_std": 1.409402,
+        "avg_min_mean":   0.705708, "avg_min_std":   0.675630,
+        "search_pct_mean":0.384509, "search_pct_std":0.180810,
+    },
+    "Social Justice": {
+        "log_views_mean": 2.970686, "log_views_std": 1.033295,
+        "avg_min_mean":   0.868691, "avg_min_std":   1.025006,
+        "search_pct_mean":0.411789, "search_pct_std":0.207443,
+    },
+    "Sports": {
+        "log_views_mean": 3.309887, "log_views_std": 1.261144,
+        "avg_min_mean":   0.737760, "avg_min_std":   0.617084,
+        "search_pct_mean":0.377031, "search_pct_std":0.174784,
+    },
+    "Sustainability": {
+        "log_views_mean": 2.860009, "log_views_std": 0.963413,
+        "avg_min_mean":   0.865624, "avg_min_std":   1.078021,
+        "search_pct_mean":0.402875, "search_pct_std":0.196399,
+    },
+    "Uncategorized": {
+        "log_views_mean": 2.526087, "log_views_std": 0.703459,
+        "avg_min_mean":   0.539763, "avg_min_std":   0.554189,
+        "search_pct_mean":0.360636, "search_pct_std":0.206526,
+    },
+}
+
+BUREAU_WIDE = {
+    "log_views_mean": 3.125668, "log_views_std": 1.228543,
+    "avg_min_mean":   0.764152, "avg_min_std":   0.803275,
+    "search_pct_mean":0.389818, "search_pct_std":0.188207,
+}
+
+# ── Author email map (fill in before sending emails) ─────────────────────────
 AUTHOR_EMAILS = {
-    # "Jane Smith": "jane.smith@cronkitebureau.com",
-    # "John Doe":   "john.doe@cronkitebureau.com",
+    # "First Last": "email@asu.edu",
 }
 
-# ── Scoring weights ────────────────────────────────────────────────────────────
-# Parse.ly returns views + recirculation_rate for the posts endpoint.
-# Recirculation rate = % of readers who clicked to a second story.
-WEIGHTS = {
-    "reach":       0.40,   # log-normalized page views
-    "depth":       0.45,   # recirculation rate
-    "search_pull": 0.15,   # % traffic from search
-}
+# ── Math helpers ──────────────────────────────────────────────────────────────
+def norm_cdf(z):
+    """Standard normal CDF — uses math.erf, no scipy needed."""
+    return 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
 
-# ── Section benchmarks: avg recirculation rate ─────────────────────────────────
-# Update these once you pull a longer historical window from the API.
-SECTION_BENCHMARKS = {
-    "Sports":            0.018,
-    "Politics & Policy": 0.016,
-    "Politics":          0.015,
-    "Sustainability":    0.020,
-    "Health":            0.019,
-    "Consumer":          0.022,
-    "Borderlands":       0.017,
-    "Government":        0.016,
-    "Social Justice":    0.021,
-    "National Security": 0.018,
-    "Indigenous":        0.016,
-    "Immigration":       0.014,
-    "default":           0.017,
-}
+def z_to_pct(value, mean, std):
+    """Convert a raw value to a 0–100 percentile vs. the given baseline."""
+    if std <= 0:
+        return 50.0
+    z = max(-3.0, min(3.0, (value - mean) / std))
+    return round(norm_cdf(z) * 100.0, 1)
 
+def get_baselines(raw_section):
+    sec = SECTION_MAP.get(raw_section.strip(), raw_section.strip())
+    return SECTION_BASELINES.get(sec, BUREAU_WIDE), sec
 
-# ── API helpers ────────────────────────────────────────────────────────────────
-
-def get_posts(days=7, limit=50):
+# ── Parse.ly API ──────────────────────────────────────────────────────────────
+def parsely_get(endpoint, extra_params=None):
     params = {
-        "apikey": PARSELY_KEY, "secret": PARSELY_SECRET,
-        "days": days, "limit": limit, "sort": "views",
+        "apikey": PARSELY_KEY,
+        "secret": PARSELY_SECRET,
+        "limit":  50,
     }
-    r = requests.get(f"{BASE_URL}/analytics/posts", params=params, timeout=15)
+    if extra_params:
+        params.update(extra_params)
+    r = requests.get(f"{BASE_URL}{endpoint}", params=params, timeout=30)
     r.raise_for_status()
-    data = r.json()
-    if not data.get("success"):
-        raise RuntimeError(f"Parse.ly error: {data}")
-    return data["data"]
+    return r.json().get("data", [])
 
-
-def get_search_views(url, days=7):
-    params = {
-        "apikey": PARSELY_KEY, "secret": PARSELY_SECRET,
-        "url": url, "days": days, "limit": 5,
+def get_posts():
+    """
+    Pull last 7 days of posts via 3 API calls (sorted by views / avg_engaged /
+    search_refs) and join results by URL so each article gets all metrics.
+    """
+    now      = datetime.datetime.utcnow()
+    week_ago = now - datetime.timedelta(days=LOOKBACK_DAYS)
+    date_params = {
+        "pub_date_start": week_ago.strftime("%Y-%m-%d"),
+        "pub_date_end":   now.strftime("%Y-%m-%d"),
+        "period_start":   week_ago.strftime("%Y-%m-%d"),
+        "period_end":     now.strftime("%Y-%m-%d"),
     }
-    r = requests.get(f"{BASE_URL}/referrers/post/detail", params=params, timeout=15)
-    if r.status_code != 200:
-        return 0
-    data = r.json()
-    if not data.get("success"):
-        return 0
-    for item in data.get("data", []):
-        if item.get("type") == "search":
-            return item.get("metrics", {}).get("views", 0)
-    return 0
 
+    merged = {}
 
-# ── Scoring ────────────────────────────────────────────────────────────────────
+    for sort_key in ["views", "avg_engaged", "search_refs"]:
+        try:
+            data = parsely_get("/analytics/posts", {**date_params, "sort": sort_key})
+            print(f"  sort={sort_key}: {len(data)} posts returned")
+        except Exception as e:
+            print(f"  Warning: sort={sort_key} call failed — {e}")
+            continue
 
-def normalize_log(value, max_value):
-    if value <= 0 or max_value <= 0:
-        return 0.0
-    return math.log(value) / math.log(max_value)
+        for item in data:
+            url = item.get("url", "").strip()
+            if not url:
+                continue
+            m = item.get("metrics", {})
 
+            if url not in merged:
+                merged[url] = {
+                    "url":               url,
+                    "title":             item.get("title", "Untitled"),
+                    "author":            item.get("author", "Unknown"),
+                    "section":           item.get("section", ""),
+                    "pub_date":          item.get("pub_date", ""),
+                    "views":             0,
+                    "avg_engaged":       0.0,
+                    "search_refs":       0,
+                    "recirculation_rate":0.0,
+                }
 
-def score_article(article, max_views):
-    m      = article.get("metrics", {})
-    views  = m.get("views", 0)
-    recirc = m.get("recirculation_rate", 0.0) or 0.0
-    search = article.get("_search_views", 0)
+            if m.get("views", 0) > 0:
+                merged[url]["views"] = m["views"]
+            if m.get("avg_engaged", 0.0) > 0:
+                merged[url]["avg_engaged"] = m["avg_engaged"]
+            if m.get("search_refs", 0) > 0:
+                merged[url]["search_refs"] = m["search_refs"]
+            if m.get("recirculation_rate") is not None:
+                merged[url]["recirculation_rate"] = m["recirculation_rate"]
 
-    reach_score  = normalize_log(views, max_views)
-    depth_score  = min(recirc / 0.10, 1.0)
-    search_score = min(search / views, 1.0) if views > 0 else 0
+    posts = [p for p in merged.values() if p["views"] > 0]
+    print(f"  Total unique posts with views: {len(posts)}")
+    return posts
 
-    composite = (
-        reach_score  * WEIGHTS["reach"] +
-        depth_score  * WEIGHTS["depth"] +
-        search_score * WEIGHTS["search_pull"]
-    )
-    return round(composite * 100)
+# ── Scoring ───────────────────────────────────────────────────────────────────
+def score_articles(posts):
+    """
+    Score each post on Reach / Depth / Discovery (equal thirds).
+    If avg_engaged is unavailable for ≥80% of posts, fall back to recirculation.
+    """
+    has_engaged = sum(1 for p in posts if p["avg_engaged"] > 0)
+    use_recirc  = (has_engaged / max(len(posts), 1)) < 0.2
+    depth_label = "Recirculation (fallback)" if use_recirc else "Avg. Engaged Minutes"
 
+    if use_recirc:
+        print(f"  Note: avg_engaged unavailable for most posts — using recirculation rate for Depth")
 
-def vs_benchmark(article):
-    section = article.get("section") or "default"
-    bench   = SECTION_BENCHMARKS.get(section, SECTION_BENCHMARKS["default"])
-    recirc  = article.get("metrics", {}).get("recirculation_rate", 0.0) or 0.0
-    if bench == 0:
-        return 0
-    return round((recirc - bench) / bench * 100)
+    scored = []
+    for post in posts:
+        baselines, section_norm = get_baselines(post["section"])
+        views = max(post["views"], 1)
 
+        # Reach
+        reach = z_to_pct(math.log(views + 1),
+                          baselines["log_views_mean"],
+                          baselines["log_views_std"])
 
-# ── Terminal report ────────────────────────────────────────────────────────────
+        # Depth
+        if use_recirc or post["avg_engaged"] == 0:
+            depth = round(min(post["recirculation_rate"] / 0.10, 1.0) * 100, 1)
+        else:
+            depth = z_to_pct(post["avg_engaged"],
+                              baselines["avg_min_mean"],
+                              baselines["avg_min_std"])
 
-def print_report(scored_articles, days=7):
-    week_end   = datetime.now().strftime("%b %d, %Y")
-    week_start = (datetime.now() - timedelta(days=days)).strftime("%b %d")
+        # Discovery
+        search_pct = post["search_refs"] / views
+        discovery  = z_to_pct(search_pct,
+                               baselines["search_pct_mean"],
+                               baselines["search_pct_std"])
 
-    print("=" * 72)
-    print("  CRONKITE SPORTS BUREAU -- WEEKLY ENGAGEMENT REPORT")
-    print(f"  {week_start} - {week_end}")
-    print("=" * 72)
+        composite = round((reach + depth + discovery) / 3.0, 1)
 
-    if not scored_articles:
-        print("  No articles found.")
-        return
+        scored.append({
+            **post,
+            "section_norm":  section_norm,
+            "reach":         reach,
+            "depth":         depth,
+            "discovery":     discovery,
+            "composite":     composite,
+            "depth_label":   depth_label,
+        })
 
-    standout   = scored_articles[0]
-    bench_diff = vs_benchmark(standout)
-    bench_str  = (f"+{bench_diff}% vs section avg" if bench_diff >= 0
-                  else f"{bench_diff}% vs section avg")
-    recirc     = standout.get("metrics", {}).get("recirculation_rate", 0.0) or 0.0
+    scored.sort(key=lambda x: x["composite"], reverse=True)
+    return scored
 
-    print(f"\n  * STANDOUT STORY  (score: {standout['_score']}/100)")
-    print(f"     {standout['title']}")
-    print(f"     {standout.get('metrics',{}).get('views',0):,} views  *  "
-          f"{recirc:.1%} recirc  *  {bench_str}")
-    print()
+# ── Terminal report ───────────────────────────────────────────────────────────
+def print_report(scored):
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    print(f"\n{'='*80}")
+    print(f"  CRONKITE ENGAGEMENT REPORT  —  {now}")
+    print(f"{'='*80}")
+    print(f"  Scoring: Reach 33% | Depth 33% | Discovery 33%")
+    print(f"  All scores are section-relative percentiles (0–100)")
+    print(f"{'='*80}\n")
 
-    print(f"  {'#':<3} {'Score':>5}  {'Views':>7}  {'Recirc':>6}  {'Section':<22}  Title")
-    print(f"  {'-'*3}  {'-'*5}  {'-'*7}  {'-'*6}  {'-'*22}  {'-'*35}")
+    fmt = "{:>3}. {:<42} {:>6} {:>7} {:>7} {:>7} {:>8}  {}"
+    print(fmt.format("#", "Title", "Views", "Reach", "Depth", "Discov", "SCORE", "Section"))
+    print("-" * 100)
 
-    for i, a in enumerate(scored_articles, 1):
-        m       = a.get("metrics", {})
-        views   = m.get("views", 0)
-        recirc  = m.get("recirculation_rate", 0.0) or 0.0
-        section = (a.get("section") or "-")[:22]
-        title   = (a.get("title") or "")[:38]
-        flag    = "*" if i == 1 else " "
-        print(f"  {flag}{i:<2} {a['_score']:>5}  {views:>7,}  {recirc:>5.1%}  {section:<22}  {title}")
+    for i, p in enumerate(scored[:20], 1):
+        title = p["title"][:42]
+        print(fmt.format(
+            i, title,
+            f"{p['views']:,}",
+            f"{p['reach']:.0f}",
+            f"{p['depth']:.0f}",
+            f"{p['discovery']:.0f}",
+            f"{p['composite']:.1f}",
+            p["section_norm"],
+        ))
 
-    print()
-    avg_score   = sum(a["_score"] for a in scored_articles) / len(scored_articles)
-    avg_recirc  = sum((a.get("metrics",{}).get("recirculation_rate",0) or 0) for a in scored_articles) / len(scored_articles)
-    total_views = sum(a.get("metrics",{}).get("views",0) for a in scored_articles)
+    print(f"\n  Depth metric: {scored[0]['depth_label'] if scored else 'N/A'}")
 
-    print(f"  Bureau totals:  {total_views:,} views  *  "
-          f"{avg_recirc:.1%} avg recirc  *  avg score {avg_score:.1f}/100")
-    print("=" * 72)
-
-
-# ── HTML Dashboard ─────────────────────────────────────────────────────────────
-
+# ── HTML Dashboard ────────────────────────────────────────────────────────────
 HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cronkite Sports Bureau &mdash; Engagement Report</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<title>Cronkite Engagement Report — {report_date}</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;background:#0d1117;color:#c9d1d9;height:100vh;overflow:hidden;display:flex;flex-direction:column}
-header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 28px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.bureau{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#8b949e}
-.report-title{font-size:20px;font-weight:700;color:#f0f6fc;margin:3px 0}
-.daterange{font-size:12px;color:#8b949e}
-.totals{display:flex;gap:28px}
-.total{text-align:right}
-.total-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e}
-.total-value{font-size:22px;font-weight:800;color:#58a6ff}
-.layout{display:grid;grid-template-columns:1fr 400px;flex:1;overflow:hidden}
-.table-panel{overflow-y:auto;border-right:1px solid #30363d}
-table{width:100%;border-collapse:collapse}
-thead th{position:sticky;top:0;background:#161b22;padding:9px 12px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;border-bottom:1px solid #30363d;z-index:1;white-space:nowrap}
-tbody tr{cursor:pointer;border-bottom:1px solid #21262d;transition:background .12s}
-tbody tr:hover{background:#1c2128}
-tbody tr.selected{background:#1a3354 !important;border-left:3px solid #58a6ff}
-td{padding:9px 12px;font-size:13px}
-td.rk{color:#8b949e;font-size:11px;width:30px;padding-right:4px}
-td.sc{font-weight:800;width:44px}
-td.vw{color:#c9d1d9;width:62px;text-align:right}
-td.rc{width:56px;text-align:right}
-td.sec{color:#8b949e;font-size:11px;width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px}
-td.ttl{color:#c9d1d9;max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.right-panel{overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;background:#0d1117}
-.card{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px}
-.card-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;margin-bottom:10px}
-.story-section{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;margin-bottom:5px}
-.story-title{font-size:14px;font-weight:600;color:#f0f6fc;line-height:1.4;margin-bottom:12px}
-.score-row{display:flex;align-items:center;gap:14px}
-.score-circle{width:68px;height:68px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid;flex-shrink:0}
-.score-num{font-size:22px;font-weight:800;line-height:1}
-.score-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;opacity:.7}
-.score-meta{flex:1}
-.bench{display:inline-block;padding:3px 9px;border-radius:4px;font-size:12px;font-weight:700;margin-bottom:5px}
-.bench.pos{background:#1a3f2a;color:#3fb950}
-.bench.neg{background:#3d1212;color:#f85149}
-.rank-text{font-size:12px;color:#8b949e}
-.metric-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
-.metric-box{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:10px;text-align:center}
-.metric-box .lbl{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#8b949e;margin-bottom:3px}
-.metric-box .val{font-size:20px;font-weight:800}
-.metric-box .sub{font-size:10px;color:#8b949e;margin-top:2px}
-.empty{text-align:center;padding:48px 20px;color:#8b949e}
-.empty h3{font-size:15px;color:#c9d1d9;margin-bottom:8px}
-.empty p{font-size:12px}
+  :root {{
+    --gold: #FFC627;
+    --maroon: #8C1D40;
+    --dark: #1a1a2e;
+    --card: #16213e;
+    --text: #e0e0e0;
+    --muted: #888;
+    --border: #2a2a4a;
+  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: var(--dark); color: var(--text); font-family: 'Segoe UI', sans-serif; }}
+
+  header {{
+    background: linear-gradient(135deg, var(--maroon), #5a0e28);
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-bottom: 3px solid var(--gold);
+  }}
+  header h1 {{ font-size: 1.4rem; font-weight: 700; color: #fff; }}
+  header .meta {{ font-size: 0.8rem; color: rgba(255,255,255,0.65); margin-top: 4px; }}
+  .badge {{
+    background: var(--gold); color: var(--maroon);
+    font-size: 0.7rem; font-weight: 700;
+    padding: 3px 8px; border-radius: 99px;
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }}
+
+  .layout {{ display: grid; grid-template-columns: 1fr 420px; gap: 16px; padding: 16px; }}
+
+  .card {{
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+  }}
+  .card h2 {{ font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em;
+               color: var(--gold); margin-bottom: 14px; }}
+
+  table {{ width: 100%; border-collapse: collapse; font-size: 0.82rem; }}
+  th {{ text-align: left; padding: 8px 10px; color: var(--muted);
+        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+        border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }}
+  th:hover {{ color: var(--gold); }}
+  td {{ padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }}
+  tr {{ cursor: pointer; transition: background 0.15s; }}
+  tr:hover td {{ background: rgba(255,198,39,0.06); }}
+  tr.active td {{ background: rgba(255,198,39,0.12); }}
+
+  .score-pill {{
+    display: inline-block;
+    padding: 3px 10px; border-radius: 99px;
+    font-weight: 700; font-size: 0.8rem;
+  }}
+  .score-high   {{ background: rgba(39,174,96,0.2);  color: #2ecc71; }}
+  .score-mid    {{ background: rgba(255,198,39,0.2); color: var(--gold); }}
+  .score-low    {{ background: rgba(231,76,60,0.15); color: #e74c3c; }}
+
+  .bar-wrap {{ display: flex; align-items: center; gap: 6px; }}
+  .bar {{ height: 6px; border-radius: 3px; background: var(--border); flex: 1; overflow: hidden; }}
+  .bar-fill {{ height: 100%; border-radius: 3px; }}
+  .bar-reach     {{ background: #3498db; }}
+  .bar-depth     {{ background: #9b59b6; }}
+  .bar-discovery {{ background: #1abc9c; }}
+  .bar-val {{ font-size: 0.75rem; color: var(--muted); width: 26px; text-align: right; }}
+
+  .side-panel {{ display: flex; flex-direction: column; gap: 16px; }}
+  .chart-wrap {{ position: relative; height: 280px; }}
+
+  .pill-legend {{ display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }}
+  .pill-legend span {{
+    font-size: 0.72rem; padding: 2px 8px; border-radius: 99px; font-weight: 600;
+  }}
+  .leg-reach     {{ background: rgba(52,152,219,0.2);  color: #3498db; }}
+  .leg-depth     {{ background: rgba(155,89,182,0.2);  color: #9b59b6; }}
+  .leg-discovery {{ background: rgba(26,188,156,0.2);  color: #1abc9c; }}
+
+  .selected-title {{
+    font-size: 0.95rem; font-weight: 600; color: #fff;
+    margin-bottom: 6px; line-height: 1.3;
+  }}
+  .selected-meta {{ font-size: 0.75rem; color: var(--muted); margin-bottom: 12px; }}
+
+  footer {{ text-align: center; padding: 20px; font-size: 0.72rem; color: var(--muted); }}
 </style>
 </head>
 <body>
+
 <header>
   <div>
-    <div class="bureau">Cronkite Sports Bureau</div>
-    <div class="report-title">Weekly Engagement Report</div>
-    <div class="daterange">__WEEK_START__ &ndash; __WEEK_END__</div>
+    <h1>Cronkite News — Engagement Report</h1>
+    <div class="meta">Week of {report_date} &nbsp;|&nbsp; {n_posts} stories &nbsp;|&nbsp; Section-relative scoring</div>
   </div>
-  <div class="totals">
-    <div class="total"><div class="total-label">Total Views</div><div class="total-value">__TOTAL_VIEWS__</div></div>
-    <div class="total"><div class="total-label">Avg Recirc</div><div class="total-value">__AVG_RECIRC__</div></div>
-    <div class="total"><div class="total-label">Avg Score</div><div class="total-value">__AVG_SCORE__</div></div>
-  </div>
+  <span class="badge">Auto-generated</span>
 </header>
+
 <div class="layout">
-  <div class="table-panel">
-    <table>
-      <thead><tr>
-        <th>#</th><th>Score</th><th style="text-align:right">Views</th>
-        <th style="text-align:right">Recirc</th><th>Section</th><th>Title</th>
-      </tr></thead>
+
+  <!-- Left: ranked table -->
+  <div class="card">
+    <h2>Story Rankings</h2>
+    <div class="pill-legend">
+      <span class="leg-reach">Reach</span>
+      <span class="leg-depth">Depth</span>
+      <span class="leg-discovery">Discovery</span>
+    </div>
+    <table id="rankings">
+      <thead>
+        <tr>
+          <th data-col="rank">#</th>
+          <th data-col="title">Story</th>
+          <th data-col="section">Section</th>
+          <th data-col="views">Views</th>
+          <th data-col="reach">Reach</th>
+          <th data-col="depth">Depth</th>
+          <th data-col="discovery">Discovery</th>
+          <th data-col="composite">Score</th>
+        </tr>
+      </thead>
       <tbody id="tbody"></tbody>
     </table>
   </div>
-  <div class="right-panel" id="right">
-    <div class="empty"><h3>Select a story</h3><p>Click any row to see its engagement profile and charts.</p></div>
+
+  <!-- Right: charts -->
+  <div class="side-panel">
+    <div class="card">
+      <h2>Pillar Breakdown</h2>
+      <div class="selected-title" id="sel-title">Click a story to inspect</div>
+      <div class="selected-meta" id="sel-meta"></div>
+      <div class="chart-wrap">
+        <canvas id="radarChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Score Distribution</h2>
+      <div class="chart-wrap">
+        <canvas id="scatterChart"></canvas>
+      </div>
+    </div>
+    <div class="card" style="font-size:0.75rem; color:var(--muted); line-height:1.6;">
+      <h2>Methodology</h2>
+      Each score is a <strong style="color:var(--text)">section-relative percentile</strong> (0–100)
+      comparing this story against its section's Jan–Jun 2026 historical baseline.<br><br>
+      <strong style="color:#3498db">Reach</strong> — log(views), vs. section avg<br>
+      <strong style="color:#9b59b6">Depth</strong> — {depth_label}, vs. section avg<br>
+      <strong style="color:#1abc9c">Discovery</strong> — % traffic from search, vs. section avg<br><br>
+      Composite = equal thirds (33 / 33 / 33).
+    </div>
   </div>
 </div>
+
+<footer>Cronkite Sports Bureau &nbsp;|&nbsp; Audience Engagement Team &nbsp;|&nbsp; Generated {report_date}</footer>
+
 <script>
-const DATA = __ARTICLES_JSON__;
-let radar = null, scatter = null;
+const posts = {posts_json};
 
-function col(score){return score>=60?'#3fb950':score>=40?'#d29922':'#8b949e'}
-function rcol(r){return r>=8?'#3fb950':r>=4?'#d29922':'#8b949e'}
+function scoreClass(s) {{
+  if (s >= 65) return 'score-high';
+  if (s >= 40) return 'score-mid';
+  return 'score-low';
+}}
 
-function buildTable(){
-  const tb = document.getElementById('tbody');
-  DATA.forEach((a,i)=>{
-    const tr = document.createElement('tr');
-    const c = col(a.score), rc = rcol(a.recirc);
-    tr.innerHTML =
-      `<td class="rk">${a.rank}</td>`+
-      `<td class="sc" style="color:${c}">${a.score}</td>`+
-      `<td class="vw">${a.views.toLocaleString()}</td>`+
-      `<td class="rc" style="color:${rc}">${a.recirc.toFixed(1)}%</td>`+
-      `<td class="sec" title="${a.section}">${a.section}</td>`+
-      `<td class="ttl" title="${a.title}">${i===0?'&#9733; ':''}${a.title}</td>`;
-    tr.onclick = ()=>select(i);
-    tb.appendChild(tr);
-  });
-}
+function bar(val, cls) {{
+  return `<div class="bar-wrap">
+    <div class="bar"><div class="bar-fill ${{cls}}" style="width:${{val}}%"></div></div>
+    <span class="bar-val">${{Math.round(val)}}</span>
+  </div>`;
+}}
 
-function select(idx){
-  document.querySelectorAll('tbody tr').forEach((r,i)=>r.classList.toggle('selected',i===idx));
-  const a = DATA[idx];
-  const c = col(a.score);
-  const bs = a.bench_diff>=0?'+'+a.bench_diff+'%':a.bench_diff+'%';
-  const bcls = a.bench_diff>=0?'pos':'neg';
+// Build table
+const tbody = document.getElementById('tbody');
+posts.forEach((p, i) => {{
+  const tr = document.createElement('tr');
+  tr.dataset.idx = i;
+  tr.innerHTML = `
+    <td style="color:var(--muted);font-size:0.75rem">${{i+1}}</td>
+    <td><a href="${{p.url}}" target="_blank" style="color:#fff;text-decoration:none;font-size:0.83rem"
+          onclick="event.stopPropagation()">${{p.title.length>55 ? p.title.slice(0,55)+'…' : p.title}}</a></td>
+    <td style="color:var(--muted);font-size:0.75rem;white-space:nowrap">${{p.section_norm}}</td>
+    <td style="color:var(--muted);font-size:0.78rem">${{p.views.toLocaleString()}}</td>
+    <td>${{bar(p.reach,'bar-reach')}}</td>
+    <td>${{bar(p.depth,'bar-depth')}}</td>
+    <td>${{bar(p.discovery,'bar-discovery')}}</td>
+    <td><span class="score-pill ${{scoreClass(p.composite)}}">${{p.composite.toFixed(1)}}</span></td>
+  `;
+  tr.addEventListener('click', () => selectPost(i));
+  tbody.appendChild(tr);
+}});
 
-  document.getElementById('right').innerHTML =
-    `<div class="card">
-      <div class="story-section">${a.section}</div>
-      <div class="story-title">${a.title}</div>
-      <div class="score-row">
-        <div class="score-circle" style="border-color:${c};color:${c}">
-          <div class="score-num">${a.score}</div>
-          <div class="score-lbl">score</div>
-        </div>
-        <div class="score-meta">
-          <div class="bench ${bcls}">${bs} vs ${a.section} avg</div>
-          <div class="rank-text">Rank #${a.rank} of ${DATA.length} this week</div>
-        </div>
-      </div>
-    </div>
-    <div class="metric-grid">
-      <div class="metric-box">
-        <div class="lbl">Reach</div>
-        <div class="val" style="color:#58a6ff">${a.reach}</div>
-        <div class="sub">${a.views.toLocaleString()} views</div>
-      </div>
-      <div class="metric-box">
-        <div class="lbl">Depth</div>
-        <div class="val" style="color:#3fb950">${a.depth}</div>
-        <div class="sub">${a.recirc.toFixed(1)}% recirc</div>
-      </div>
-      <div class="metric-box">
-        <div class="lbl">Search</div>
-        <div class="val" style="color:#d29922">${a.search}</div>
-        <div class="sub">${a.search_views} search views</div>
-      </div>
-    </div>
-    <div class="card">
-      <div class="card-label">Engagement Profile</div>
-      <canvas id="radarChart" height="210"></canvas>
-    </div>
-    <div class="card">
-      <div class="card-label">Views vs. Recirculation &mdash; All Stories This Week</div>
-      <canvas id="scatterChart" height="190"></canvas>
-    </div>`;
+// Radar chart
+const radarCtx = document.getElementById('radarChart').getContext('2d');
+const radarChart = new Chart(radarCtx, {{
+  type: 'radar',
+  data: {{
+    labels: ['Reach','Depth','Discovery'],
+    datasets: [{{
+      label: 'Score',
+      data: [0,0,0],
+      backgroundColor: 'rgba(255,198,39,0.15)',
+      borderColor: '#FFC627',
+      pointBackgroundColor: '#FFC627',
+      borderWidth: 2,
+    }}]
+  }},
+  options: {{
+    responsive: true, maintainAspectRatio: false,
+    scales: {{ r: {{
+      min: 0, max: 100,
+      ticks: {{ stepSize: 25, color: '#888', font: {{size:10}} }},
+      grid: {{ color: 'rgba(255,255,255,0.08)' }},
+      pointLabels: {{ color: '#e0e0e0', font: {{size:12}} }},
+      angleLines: {{ color: 'rgba(255,255,255,0.08)' }},
+    }} }},
+    plugins: {{ legend: {{ display: false }} }},
+  }}
+}});
 
-  buildRadar(a);
-  buildScatter(idx);
-}
+// Scatter chart
+const scatterCtx = document.getElementById('scatterChart').getContext('2d');
+const scatterChart = new Chart(scatterCtx, {{
+  type: 'scatter',
+  data: {{
+    datasets: [{{
+      label: 'Stories',
+      data: posts.map(p => ({{ x: p.reach, y: p.depth, post: p }})),
+      backgroundColor: posts.map(p =>
+        p.composite >= 65 ? 'rgba(46,204,113,0.7)' :
+        p.composite >= 40 ? 'rgba(255,198,39,0.7)' :
+                            'rgba(231,76,60,0.7)'),
+      pointRadius: 5,
+    }}]
+  }},
+  options: {{
+    responsive: true, maintainAspectRatio: false,
+    scales: {{
+      x: {{ min:0, max:100, title:{{display:true,text:'Reach',color:'#3498db',font:{{size:11}}}},
+             grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
+      y: {{ min:0, max:100, title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:11}}}},
+             grid:{{color:'rgba(255,255,255,0.05)'}}, ticks:{{color:'#888'}} }},
+    }},
+    plugins: {{
+      legend: {{ display:false }},
+      tooltip: {{ callbacks: {{ label: ctx => ctx.raw.post.title.slice(0,40) }} }},
+    }},
+  }}
+}});
 
-function buildRadar(a){
-  if(radar){radar.destroy();radar=null;}
-  const ctx = document.getElementById('radarChart').getContext('2d');
-  radar = new Chart(ctx,{
-    type:'radar',
-    data:{
-      labels:['Reach','Depth','Search Pull'],
-      datasets:[{
-        label:'This Story',
-        data:[a.reach,a.depth,a.search],
-        backgroundColor:'rgba(88,166,255,0.12)',
-        borderColor:'#58a6ff',
-        pointBackgroundColor:'#58a6ff',
-        pointBorderColor:'#0d1117',
-        borderWidth:2,pointRadius:5
-      }]
-    },
-    options:{
-      responsive:true,
-      plugins:{legend:{display:false}},
-      scales:{r:{
-        min:0,max:100,
-        ticks:{display:false},
-        grid:{color:'#30363d'},
-        angleLines:{color:'#30363d'},
-        pointLabels:{color:'#c9d1d9',font:{size:12,weight:'600'}}
-      }}
-    }
-  });
-}
+// Selection
+let activeRow = null;
+function selectPost(idx) {{
+  if (activeRow !== null) document.querySelectorAll('#tbody tr')[activeRow].classList.remove('active');
+  activeRow = idx;
+  document.querySelectorAll('#tbody tr')[idx].classList.add('active');
+  const p = posts[idx];
+  document.getElementById('sel-title').textContent = p.title;
+  document.getElementById('sel-meta').textContent =
+    `${{p.section_norm}} · ${{p.views.toLocaleString()}} views · ${{p.author}}`;
+  radarChart.data.datasets[0].data = [p.reach, p.depth, p.discovery];
+  radarChart.update();
+}}
 
-function buildScatter(selIdx){
-  if(scatter){scatter.destroy();scatter=null;}
-  const ctx = document.getElementById('scatterChart').getContext('2d');
-  const pts = DATA.map((a,i)=>({
-    x: Math.log10(Math.max(a.views,1)),
-    y: a.recirc,
-    title: a.title,
-    isSel: i===selIdx
-  }));
-  const medV = [...DATA].sort((a,b)=>a.views-b.views)[Math.floor(DATA.length/2)].views;
-  const medR = [...DATA].sort((a,b)=>a.recirc-b.recirc)[Math.floor(DATA.length/2)].recirc;
-  scatter = new Chart(ctx,{
-    type:'scatter',
-    data:{datasets:[{
-      data:pts,
-      pointRadius: pts.map(p=>p.isSel?9:5),
-      pointBackgroundColor: pts.map(p=>p.isSel?'#f0f6fc':'rgba(88,166,255,0.55)'),
-      pointBorderColor: pts.map(p=>p.isSel?'#58a6ff':'transparent'),
-      pointBorderWidth:2
-    }]},
-    options:{
-      responsive:true,
-      plugins:{
-        legend:{display:false},
-        tooltip:{callbacks:{label:ctx=>{
-          const p=pts[ctx.dataIndex];
-          return `${p.title.substring(0,36)}: ${Math.round(Math.pow(10,p.x)).toLocaleString()} views, ${p.y.toFixed(1)}% recirc`;
-        }}}
-      },
-      scales:{
-        x:{
-          title:{display:true,text:'Views (log scale)',color:'#8b949e',font:{size:11}},
-          ticks:{color:'#8b949e',callback:v=>Math.round(Math.pow(10,v)).toLocaleString()},
-          grid:{color:'#21262d'}
-        },
-        y:{
-          title:{display:true,text:'Recirculation %',color:'#8b949e',font:{size:11}},
-          ticks:{color:'#8b949e',callback:v=>v+'%'},
-          grid:{color:'#21262d'}
-        }
-      }
-    },
-    plugins:[{
-      id:'quadrants',
-      afterDraw(chart){
-        const{ctx,chartArea:{left,right,top,bottom},scales:{x,y}}=chart;
-        const mx=x.getPixelForValue(Math.log10(medV));
-        const my=y.getPixelForValue(medR);
-        ctx.save();
-        ctx.strokeStyle='rgba(88,166,255,0.2)';
-        ctx.lineWidth=1;
-        ctx.setLineDash([4,4]);
-        ctx.beginPath();ctx.moveTo(mx,top);ctx.lineTo(mx,bottom);ctx.stroke();
-        ctx.beginPath();ctx.moveTo(left,my);ctx.lineTo(right,my);ctx.stroke();
-        ctx.setLineDash([]);
-        const labels=[
-          {x:right-4,y:top+12,text:'High Reach + High Depth',align:'right'},
-          {x:left+4, y:top+12,text:'Low Reach + High Depth',align:'left'},
-          {x:right-4,y:bottom-6,text:'High Reach + Low Depth',align:'right'},
-          {x:left+4, y:bottom-6,text:'Low Reach + Low Depth',align:'left'},
-        ];
-        ctx.font='9px Helvetica';ctx.fillStyle='rgba(139,148,158,0.6)';
-        labels.forEach(l=>{ctx.textAlign=l.align;ctx.fillText(l.text,l.x,l.y);});
-        ctx.restore();
-      }
-    }]
-  });
-}
+// Auto-select top story
+if (posts.length > 0) selectPost(0);
 
-buildTable();
-select(0);
+// Column sort
+let sortCol = 'composite', sortDir = -1;
+document.querySelectorAll('th').forEach(th => {{
+  th.addEventListener('click', () => {{
+    const col = th.dataset.col;
+    sortDir = (sortCol === col) ? -sortDir : -1;
+    sortCol = col;
+    const sorted = [...posts].sort((a,b) => sortDir * ((a[col]??0) < (b[col]??0) ? -1 : 1));
+    tbody.innerHTML = '';
+    sorted.forEach((p, i) => {{
+      const origIdx = posts.indexOf(p);
+      const tr = tbody.querySelector(`tr[data-idx="${{origIdx}}"]`);
+      if (tr) tbody.appendChild(tr);
+    }});
+  }});
+}});
 </script>
 </body>
 </html>"""
 
+def generate_dashboard(scored):
+    import json
+    today = datetime.date.today().strftime("%Y-%m-%d")
+    fname = f"cronkite_report_{today}.html"
 
-def generate_dashboard(scored_articles, days=7):
-    """Generate a self-contained HTML dashboard and save it to disk."""
-    if not scored_articles:
-        return None
+    posts_json = json.dumps([{
+        "url":         p["url"],
+        "title":       p["title"],
+        "author":      p["author"],
+        "section_norm":p["section_norm"],
+        "views":       p["views"],
+        "reach":       p["reach"],
+        "depth":       p["depth"],
+        "discovery":   p["discovery"],
+        "composite":   p["composite"],
+    } for p in scored], indent=2)
 
-    max_views = max(a.get("metrics",{}).get("views",0) for a in scored_articles) or 1
+    depth_label = scored[0]["depth_label"] if scored else "Avg. Engaged Minutes"
 
-    articles_data = []
-    for i, a in enumerate(scored_articles, 1):
-        m      = a.get("metrics", {})
-        views  = m.get("views", 0)
-        recirc = m.get("recirculation_rate", 0.0) or 0.0
-        sv     = a.get("_search_views", 0)
+    html = HTML_TEMPLATE.format(
+        report_date  = today,
+        n_posts      = len(scored),
+        posts_json   = posts_json,
+        depth_label  = depth_label,
+    )
 
-        reach_score  = round(normalize_log(views, max_views) * 100)
-        depth_score  = round(min(recirc / 0.10, 1.0) * 100)
-        search_score = round(min(sv / views, 1.0) * 100 if views > 0 else 0)
+    for name in (fname, "index.html"):
+        with open(name, "w", encoding="utf-8") as f:
+            f.write(html)
+        print(f"  Saved: {name}")
 
-        articles_data.append({
-            "rank":       i,
-            "title":      (a.get("title") or "")[:80],
-            "section":    a.get("section") or "--",
-            "views":      views,
-            "recirc":     round(recirc * 100, 2),
-            "score":      a["_score"],
-            "bench_diff": vs_benchmark(a),
-            "reach":      reach_score,
-            "depth":      depth_score,
-            "search":     search_score,
-            "search_views": sv,
-            "url":        a.get("url", ""),
-        })
+    return fname
 
-    now        = datetime.now()
-    week_end   = now.strftime("%b %d, %Y")
-    week_start = (now - timedelta(days=days)).strftime("%b %d")
-    total_views = sum(d["views"] for d in articles_data)
-    avg_recirc  = sum(d["recirc"] for d in articles_data) / len(articles_data)
-    avg_score   = sum(d["score"] for d in articles_data) / len(articles_data)
+# ── Author emails ─────────────────────────────────────────────────────────────
+EMAIL_TEMPLATE = """Hi {first_name},
 
-    html = HTML_TEMPLATE
-    html = html.replace("__ARTICLES_JSON__", json.dumps(articles_data))
-    html = html.replace("__WEEK_START__",    week_start)
-    html = html.replace("__WEEK_END__",      week_end)
-    html = html.replace("__TOTAL_VIEWS__",   f"{total_views:,}")
-    html = html.replace("__AVG_RECIRC__",    f"{avg_recirc:.1f}%")
-    html = html.replace("__AVG_SCORE__",     f"{avg_score:.0f}")
+Your story published this week has been scored by the Cronkite engagement system:
 
-    filename = f"cronkite_report_{now.strftime('%Y%m%d')}.html"
-    with open(filename, "w", encoding="utf-8") as f:
-        f.write(html)
-    print(f"\n  Dashboard saved: {filename}  (open in any browser)")
-    return filename
+  "{title}"
+  {url}
 
+ENGAGEMENT SCORE: {composite}/100  (vs. {section_norm} section average)
 
-# ── Author Emails ──────────────────────────────────────────────────────────────
+  Reach      {reach}/100  — how many readers found your story
+  Depth      {depth}/100  — how long readers stayed engaged
+  Discovery  {discovery}/100 — how much traffic came from search
 
-def send_author_email(post, rank, total):
-    """Send a 48-hour performance email to the article author."""
-    # Get author name from Parse.ly
-    author = post.get("author", "")
-    if not author and post.get("authors"):
-        author = post["authors"][0].get("name", "") if isinstance(post["authors"], list) else ""
-    if not author:
-        return False
+Scores are section-relative percentiles: a 70 means you outperformed 70% of
+{section_norm} stories published Jan–Jun 2026.
 
-    email_addr = AUTHOR_EMAILS.get(author)
-    if not email_addr:
-        return False
+Keep up the great work,
+Cronkite Audience Engagement Team
+"""
 
-    if not SMTP_EMAIL or not SMTP_PASSWORD:
-        print(f"  [email] Skipping {author} -- SMTP credentials not set")
-        return False
+def send_author_email(post, smtp_email, smtp_password):
+    author = post["author"]
+    recipient = AUTHOR_EMAILS.get(author)
+    if not recipient:
+        return
 
-    m          = post.get("metrics", {})
-    views      = m.get("views", 0)
-    recirc     = m.get("recirculation_rate", 0.0) or 0.0
-    score      = post.get("_score", 0)
-    bench_diff = vs_benchmark(post)
-    bench_sign = "+" if bench_diff >= 0 else ""
-    title      = post.get("title", "Untitled")
-    section    = post.get("section") or ""
-    url        = post.get("url", "#")
-    first_name = author.split()[0]
-
-    score_color = "#3fb950" if score >= 60 else "#d29922" if score >= 40 else "#8b949e"
-    bench_color = "#3fb950" if bench_diff >= 0 else "#f85149"
-
-    if recirc >= 0.08:
-        context_note = "Strong depth score -- readers who found your story engaged enough to keep exploring the site."
-    elif recirc >= 0.04:
-        context_note = "Recirculation measures readers who clicked to a second story. Above 4% is solid."
-    else:
-        context_note = "Tip: stories with strong headlines and related-content links tend to drive higher recirculation."
-
-    body = f"""
-<html><body style="font-family:'Helvetica Neue',Arial,sans-serif;background:#f6f8fa;padding:24px;">
-<div style="max-width:520px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e1e4e8;">
-
-  <div style="background:#1f2937;padding:18px 24px;">
-    <div style="font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#9ca3af;">Cronkite Sports Bureau</div>
-    <div style="font-size:17px;font-weight:700;color:#fff;margin-top:4px;">48-Hour Story Report</div>
-  </div>
-
-  <div style="padding:22px 24px;">
-    <p style="color:#374151;font-size:14px;margin-bottom:6px;">Hi {first_name},</p>
-    <p style="color:#374151;font-size:14px;margin-bottom:18px;">Here's how your story performed in its first 48 hours:</p>
-
-    <div style="background:#f6f8fa;border-radius:6px;padding:14px;margin-bottom:18px;">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#6b7280;margin-bottom:4px;">{section}</div>
-      <a href="{url}" style="font-size:14px;font-weight:600;color:#1f2937;text-decoration:none;">{title}</a>
-    </div>
-
-    <div style="text-align:center;margin-bottom:20px;">
-      <div style="display:inline-flex;align-items:center;justify-content:center;width:76px;height:76px;border-radius:50%;border:3px solid {score_color};">
-        <span style="font-size:26px;font-weight:800;color:{score_color};">{score}</span>
-      </div>
-      <div style="font-size:11px;color:#6b7280;margin-top:4px;">Engagement Score / 100</div>
-      <div style="font-size:13px;font-weight:700;color:{bench_color};margin-top:4px;">{bench_sign}{bench_diff}% vs {section} average</div>
-    </div>
-
-    <table style="width:100%;border-collapse:collapse;margin-bottom:18px;">
-      <tr style="border-bottom:1px solid #e1e4e8;">
-        <td style="padding:10px 0;font-size:13px;color:#374151;">Page Views</td>
-        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#1f2937;text-align:right;">{views:,}</td>
-      </tr>
-      <tr style="border-bottom:1px solid #e1e4e8;">
-        <td style="padding:10px 0;font-size:13px;color:#374151;">Recirculation Rate</td>
-        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#1f2937;text-align:right;">{recirc:.1%}</td>
-      </tr>
-      <tr>
-        <td style="padding:10px 0;font-size:13px;color:#374151;">Rank This Week</td>
-        <td style="padding:10px 0;font-size:13px;font-weight:700;color:#1f2937;text-align:right;">#{rank} of {total}</td>
-      </tr>
-    </table>
-
-    <div style="background:#eff6ff;border-left:3px solid #3b82f6;padding:11px 14px;border-radius:0 4px 4px 0;font-size:12px;color:#1e40af;line-height:1.5;">
-      {context_note}
-    </div>
-  </div>
-
-  <div style="padding:14px 24px;border-top:1px solid #e1e4e8;font-size:10px;color:#9ca3af;">
-    Sent automatically by the Cronkite Sports Bureau Engagement System.
-  </div>
-</div>
-</body></html>"""
-
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = f'Your story "{title[:50]}{"..." if len(title)>50 else ""}" -- 48hr Engagement Report'
-    msg["From"]    = f"Cronkite Sports Bureau <{SMTP_EMAIL}>"
-    msg["To"]      = email_addr
-    msg.attach(MIMEText(body, "html"))
-
+    pub = post.get("pub_date", "")
     try:
-        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_EMAIL, SMTP_PASSWORD)
-            server.sendmail(SMTP_EMAIL, email_addr, msg.as_string())
-        print(f"  Email sent: {author} <{email_addr}>")
-        return True
-    except Exception as e:
-        print(f"  Email failed for {author}: {e}")
-        return False
+        pub_dt = datetime.datetime.fromisoformat(pub.replace("Z",""))
+        age_h = (datetime.datetime.utcnow() - pub_dt).total_seconds() / 3600
+        if not (24 <= age_h <= 72):
+            return
+    except Exception:
+        pass
 
+    first = author.split()[0] if author else "there"
+    body = EMAIL_TEMPLATE.format(
+        first_name   = first,
+        title        = post["title"],
+        url          = post["url"],
+        composite    = post["composite"],
+        section_norm = post["section_norm"],
+        reach        = post["reach"],
+        depth        = post["depth"],
+        discovery    = post["discovery"],
+    )
 
-def send_all_author_emails(scored_articles):
-    """Email authors whose stories are 24-72 hours old."""
-    if not AUTHOR_EMAILS:
-        print("\n  [email] Add author entries to AUTHOR_EMAILS to enable this feature.")
-        return
+    msg = MIMEMultipart()
+    msg["From"]    = smtp_email
+    msg["To"]      = recipient
+    msg["Subject"] = f"Your story engagement score: {post['composite']}/100"
+    msg.attach(MIMEText(body, "plain"))
 
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as s:
+        s.login(smtp_email, smtp_password)
+        s.sendmail(smtp_email, recipient, msg.as_string())
+    print(f"  Email sent to {recipient} ({author})")
+
+def send_all_author_emails(scored):
     if not SMTP_EMAIL or not SMTP_PASSWORD:
-        print("\n  [email] Set SMTP_EMAIL and SMTP_PASSWORD env vars to send emails.")
+        print("  Skipping emails — SMTP credentials not set")
         return
+    for post in scored:
+        try:
+            send_author_email(post, SMTP_EMAIL, SMTP_PASSWORD)
+        except Exception as e:
+            print(f"  Email error for {post['author']}: {e}")
 
-    now   = datetime.now()
-    total = len(scored_articles)
-    sent  = 0
-
-    print("\nSending author emails...")
-    for rank, post in enumerate(scored_articles, 1):
-        pub_str = post.get("pub_date", "")
-        if pub_str:
-            try:
-                pub = datetime.fromisoformat(pub_str.replace("Z", "")).replace(tzinfo=None)
-                hours_old = (now - pub).total_seconds() / 3600
-                if not (24 <= hours_old <= 72):
-                    continue
-            except Exception:
-                pass  # Date parse failed; send anyway
-
-        if send_author_email(post, rank, total):
-            sent += 1
-
-    print(f"  {sent} email(s) sent.")
-
-
-# ── Main ───────────────────────────────────────────────────────────────────────
-
+# ── Main ──────────────────────────────────────────────────────────────────────
 def main():
-    days = 7
-    print(f"Fetching last {days} days from Parse.ly...")
-    posts = get_posts(days=days, limit=50)
+    print("\nFetching posts from Parse.ly...")
+    posts = get_posts()
 
     if not posts:
-        print("No posts returned.")
+        print("No posts found for the past 7 days.")
         return
 
-    print(f"  Found {len(posts)} posts.\n")
-    print("Fetching referrer data (this may take a moment)...")
-    for post in posts:
-        post["_search_views"] = get_search_views(post.get("url", ""), days=days)
+    print(f"\nScoring {len(posts)} articles...")
+    scored = score_articles(posts)
 
-    max_views = max(p.get("metrics", {}).get("views", 0) for p in posts) or 1
-    for post in posts:
-        post["_score"] = score_article(post, max_views)
+    print_report(scored)
 
-    scored = sorted(posts, key=lambda x: x["_score"], reverse=True)
+    print("\nGenerating dashboard...")
+    generate_dashboard(scored)
 
-    print_report(scored, days=days)
-    generate_dashboard(scored, days=days)
+    print("\nSending author emails...")
     send_all_author_emails(scored)
 
+    print("\nDone.")
 
 if __name__ == "__main__":
     main()
