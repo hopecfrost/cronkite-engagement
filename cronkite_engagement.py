@@ -2,7 +2,7 @@
 Cronkite News Bureau — Weekly Engagement Scoring
 Weights: Depth 50%, Reach 30%, Retention 20%
 """
-import os, json, math, datetime, smtplib
+import os, json, math, datetime, smtplib, csv
 from email.mime.text import MIMEText
 from collections import Counter
 import requests
@@ -12,6 +12,7 @@ PARSELY_SECRET = os.getenv("PARSELY_SECRET") or "tAytVAdJCyLdFHatqOOHLVXTrdHpUm5
 SMTP_EMAIL     = os.getenv("SMTP_EMAIL")     or ""
 SMTP_PASSWORD  = os.getenv("SMTP_PASSWORD")  or ""
 SCORES_FILE    = "scores.json"
+EMAILS_FILE    = "emails.csv"
 
 CANONICAL_SECTIONS = {
     "Borderlands","Health","Indigenous","Money","Noticias",
@@ -43,9 +44,20 @@ SECTION_BASELINES = {
 }
 BUREAU_WIDE = {"log_views_mean":3.868346,"log_views_std":1.378027,"avg_min_mean":0.697029,"avg_min_std":0.573032,"ret_pct_mean":0.084345,"ret_pct_std":0.079605}
 
-AUTHOR_EMAILS = {
-    # "First Last": "asurite@asu.edu",
-}
+def load_author_emails():
+    """Load name→email mapping from emails.csv (Name,Email columns)."""
+    emails = {}
+    if not os.path.exists(EMAILS_FILE):
+        print(f"  No {EMAILS_FILE} found — skipping author emails")
+        return emails
+    with open(EMAILS_FILE, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            name = (row.get("Name") or "").strip()
+            email = (row.get("Email") or "").strip()
+            if name and email:
+                emails[name] = email
+    print(f"  Loaded {len(emails)} author emails from {EMAILS_FILE}")
+    return emails
 
 def norm_cdf(z): return 0.5*(1.0+math.erf(z/math.sqrt(2.0)))
 def z_to_pct(value,mean,std):
@@ -402,7 +414,10 @@ td.sc{{width:50px}}
     print(f"Dashboard → {filename}")
     return filename
 
-def send_email(to_addr,subject,body_html):
+def send_email(to_addr, subject, body_html, dry_run=False):
+    if dry_run:
+        print(f"  [DRY RUN] To: {to_addr} | Subject: {subject}")
+        return
     if not SMTP_EMAIL or not SMTP_PASSWORD:
         print(f"  (SMTP not configured — skipping {to_addr})"); return
     msg=MIMEText(body_html,"html"); msg["Subject"]=subject; msg["From"]=SMTP_EMAIL; msg["To"]=to_addr
@@ -412,26 +427,72 @@ def send_email(to_addr,subject,body_html):
         print(f"  Email sent → {to_addr}")
     except Exception as e: print(f"  Email failed ({to_addr}): {e}")
 
-def send_all_author_emails(scored):
+def send_all_author_emails(scored, author_emails, dry_run=False):
+    # Group stories by author
+    by_author = {}
     for story in scored:
-        author=story.get("author",""); email=AUTHOR_EMAILS.get(author)
+        author = story.get("author","")
+        email = author_emails.get(author)
         if not email: continue
-        subject=f"Your story engagement score — {story['composite']}/100"
-        body=f"""<p>Hi {author.split()[0] if author else 'there'},</p>
-<p>Here's how your recent story performed:</p>
-<table style="border-collapse:collapse;font-family:sans-serif">
-  <tr><td style="padding:4px 12px 4px 0"><b>Story</b></td><td><a href="{story['url']}">{story['title']}</a></td></tr>
-  <tr><td style="padding:4px 12px 4px 0"><b>Score</b></td><td><b>{story['composite']}/100</b></td></tr>
-  <tr><td style="padding:4px 12px 4px 0"><b>Reach (30%)</b></td><td>{story['reach']}/100</td></tr>
-  <tr><td style="padding:4px 12px 4px 0"><b>Depth (50%)</b></td><td>{story['depth']}/100</td></tr>
-  <tr><td style="padding:4px 12px 4px 0"><b>Retention (20%)</b></td><td>{story['returning']}/100</td></tr>
-  <tr><td style="padding:4px 12px 4px 0"><b>Views</b></td><td>{story['views']:,}</td></tr>
-  <tr><td style="padding:4px 12px 4px 0"><b>Mobile / Desktop</b></td><td>{story['mob_pct']}% / {story['desk_pct']}%</td></tr>
-</table>
-<p style="margin-top:12px;color:#666;font-size:.9em">Scores are section-relative vs. <em>{story['section_norm']}</em> historical average.</p>"""
-        send_email(email,subject,body)
+        by_author.setdefault(author, {"email": email, "stories": []})["stories"].append(story)
+
+    for author, data in by_author.items():
+        stories = data["stories"]
+        first_name = author.split()[0] if author else "there"
+        subject = f"Your story scores this week — Cronkite Engagement"
+
+        rows = ""
+        for s in stories:
+            rows += f"""
+            <tr>
+              <td style="padding:10px 0;border-bottom:1px solid #f0f1f5">
+                <div style="font-weight:600;margin-bottom:4px"><a href="{s['url']}" style="color:#005195;text-decoration:none">{s['title']}</a></div>
+                <div style="font-size:12px;color:#58595b">{s['section_norm']} &middot; {s.get('pub_date_display', s['pub_date'])}</div>
+              </td>
+              <td style="padding:10px 8px;text-align:center;border-bottom:1px solid #f0f1f5;font-size:22px;font-weight:800;color:{'#27ae60' if s['composite']>=65 else '#e67e22' if s['composite']>=40 else '#c0392b'}">{s['composite']}</td>
+              <td style="padding:10px 8px;text-align:center;border-bottom:1px solid #f0f1f5;font-size:13px;color:#3498db">{s['reach']}</td>
+              <td style="padding:10px 8px;text-align:center;border-bottom:1px solid #f0f1f5;font-size:13px;color:#9b59b6">{s['depth']}</td>
+              <td style="padding:10px 8px;text-align:center;border-bottom:1px solid #f0f1f5;font-size:13px;color:#1abc9c">{s['returning']}</td>
+            </tr>"""
+
+        body = f"""
+<div style="font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;max-width:580px;margin:0 auto;color:#414141">
+  <div style="background:#005195;padding:20px 24px;border-radius:8px 8px 0 0">
+    <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,0.6)">Cronkite News Bureau</div>
+    <div style="font-size:20px;font-weight:700;color:#fff;margin-top:4px">Weekly Engagement Report</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.6);margin-top:2px">Week of {stories[0]['week_scored']}</div>
+  </div>
+  <div style="background:#fff;padding:24px;border:1px solid #e2e3ea;border-top:none;border-radius:0 0 8px 8px">
+    <p style="margin:0 0 16px">Hi {first_name},</p>
+    <p style="margin:0 0 20px;color:#58595b">Here's how your {"story" if len(stories)==1 else f"{len(stories)} stories"} performed this week. Scores are section-relative percentiles (0–100) based on the Cronkite archive.</p>
+    <table style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr style="font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#58595b">
+          <th style="text-align:left;padding:0 0 8px">Story</th>
+          <th style="padding:0 8px 8px;text-align:center">Score</th>
+          <th style="padding:0 8px 8px;text-align:center;color:#3498db">Reach</th>
+          <th style="padding:0 8px 8px;text-align:center;color:#9b59b6">Depth</th>
+          <th style="padding:0 8px 8px;text-align:center;color:#1abc9c">Retention</th>
+        </tr>
+      </thead>
+      <tbody>{rows}</tbody>
+    </table>
+    <p style="margin:20px 0 0;font-size:11px;color:#aaa">
+      Score = Depth (50%) + Reach (30%) + Retention (20%) vs. section average.<br>
+      Questions? Reply to this email.
+    </p>
+  </div>
+</div>"""
+
+        send_email(data["email"], subject, body, dry_run=dry_run)
+
+    if not by_author:
+        print("  No matching authors in emails.csv — no emails sent")
 
 def main():
+    import sys
+    dry_run = "--dry-run" in sys.argv
+
     print("Fetching from Parse.ly…")
     posts=get_posts(); print(f"  {len(posts)} posts")
     print("Scoring…")
@@ -445,8 +506,9 @@ def main():
     save_scores(archive); print(f"  +{added} new ({len(archive)} total)")
     print("Generating dashboard…")
     generate_dashboard(list(archive.values()))
-    print("Sending emails…")
-    send_all_author_emails(new_scored)
+    print("Sending emails…" if not dry_run else "Dry-run email preview…")
+    author_emails = load_author_emails()
+    send_all_author_emails(new_scored, author_emails, dry_run=dry_run)
     print("Done.")
 
 if __name__=="__main__":
