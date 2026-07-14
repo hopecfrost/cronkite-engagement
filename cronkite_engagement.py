@@ -28,21 +28,20 @@ def normalize_section(raw):
     if raw in CANONICAL_SECTIONS: return raw
     return SECTION_MAP.get(raw)
 
-# ret_pct_mean / ret_pct_std = returning_visitors / visitors baseline by section
-# Estimated from Parse.ly industry benchmarks; will recalibrate after ~1 semester of data
+# Baselines computed from Dec 2024–Jul 2026 CSV export (N=9,990 stories)
 SECTION_BASELINES = {
-    "Borderlands":      {"log_views_mean":3.671606,"log_views_std":1.436332,"avg_min_mean":0.697908,"avg_min_std":0.611949,"ret_pct_mean":0.240,"ret_pct_std":0.110},
-    "Health":           {"log_views_mean":3.759307,"log_views_std":1.325098,"avg_min_mean":0.760348,"avg_min_std":0.622188,"ret_pct_mean":0.220,"ret_pct_std":0.105},
-    "Indigenous":       {"log_views_mean":3.761935,"log_views_std":1.347123,"avg_min_mean":0.765000,"avg_min_std":0.606882,"ret_pct_mean":0.235,"ret_pct_std":0.105},
-    "Money":            {"log_views_mean":3.280083,"log_views_std":1.092896,"avg_min_mean":0.599677,"avg_min_std":0.591380,"ret_pct_mean":0.200,"ret_pct_std":0.105},
-    "Noticias":         {"log_views_mean":3.691104,"log_views_std":1.014322,"avg_min_mean":0.711699,"avg_min_std":0.469350,"ret_pct_mean":0.230,"ret_pct_std":0.115},
-    "Politics & Policy":{"log_views_mean":3.970215,"log_views_std":1.639747,"avg_min_mean":0.647451,"avg_min_std":0.580876,"ret_pct_mean":0.200,"ret_pct_std":0.115},
-    "Social Justice":   {"log_views_mean":3.635902,"log_views_std":1.212057,"avg_min_mean":0.705322,"avg_min_std":0.639510,"ret_pct_mean":0.210,"ret_pct_std":0.115},
-    "Sports":           {"log_views_mean":4.229719,"log_views_std":1.389051,"avg_min_mean":0.729208,"avg_min_std":0.500631,"ret_pct_mean":0.250,"ret_pct_std":0.110},
-    "Sustainability":   {"log_views_mean":3.611491,"log_views_std":1.214433,"avg_min_mean":0.696243,"avg_min_std":0.612033,"ret_pct_mean":0.220,"ret_pct_std":0.110},
-    "Tech":             {"log_views_mean":3.103329,"log_views_std":0.879452,"avg_min_mean":0.537443,"avg_min_std":0.427121,"ret_pct_mean":0.210,"ret_pct_std":0.105},
+    "Borderlands":      {"log_views_mean":3.671606,"log_views_std":1.436332,"avg_min_mean":0.697908,"avg_min_std":0.611949,"ret_pct_mean":0.079513,"ret_pct_std":0.074632},  # N=296
+    "Health":           {"log_views_mean":3.759307,"log_views_std":1.325098,"avg_min_mean":0.760348,"avg_min_std":0.622188,"ret_pct_mean":0.079375,"ret_pct_std":0.077731},  # N=519
+    "Indigenous":       {"log_views_mean":3.761935,"log_views_std":1.347123,"avg_min_mean":0.765000,"avg_min_std":0.606882,"ret_pct_mean":0.078320,"ret_pct_std":0.070238},  # N=131
+    "Money":            {"log_views_mean":3.280083,"log_views_std":1.092896,"avg_min_mean":0.599677,"avg_min_std":0.591380,"ret_pct_mean":0.057937,"ret_pct_std":0.063694},  # N=658
+    "Noticias":         {"log_views_mean":3.691104,"log_views_std":1.014322,"avg_min_mean":0.711699,"avg_min_std":0.469350,"ret_pct_mean":0.124843,"ret_pct_std":0.108055},  # N=136
+    "Politics & Policy":{"log_views_mean":3.970215,"log_views_std":1.639747,"avg_min_mean":0.647451,"avg_min_std":0.580876,"ret_pct_mean":0.077784,"ret_pct_std":0.074398},  # N=1301
+    "Social Justice":   {"log_views_mean":3.635902,"log_views_std":1.212057,"avg_min_mean":0.705322,"avg_min_std":0.639510,"ret_pct_mean":0.070734,"ret_pct_std":0.068064},  # N=1126
+    "Sports":           {"log_views_mean":4.229719,"log_views_std":1.389051,"avg_min_mean":0.729208,"avg_min_std":0.500631,"ret_pct_mean":0.105318,"ret_pct_std":0.084311},  # N=3433
+    "Sustainability":   {"log_views_mean":3.611491,"log_views_std":1.214433,"avg_min_mean":0.696243,"avg_min_std":0.612033,"ret_pct_mean":0.063010,"ret_pct_std":0.063251},  # N=1120
+    "Tech":             {"log_views_mean":3.103329,"log_views_std":0.879452,"avg_min_mean":0.537443,"avg_min_std":0.427121,"ret_pct_mean":0.053097,"ret_pct_std":0.077217},  # N=65
 }
-BUREAU_WIDE = {"log_views_mean":3.868346,"log_views_std":1.378027,"avg_min_mean":0.697029,"avg_min_std":0.573032,"ret_pct_mean":0.220,"ret_pct_std":0.110}
+BUREAU_WIDE = {"log_views_mean":3.868346,"log_views_std":1.378027,"avg_min_mean":0.697029,"avg_min_std":0.573032,"ret_pct_mean":0.084345,"ret_pct_std":0.079605}  # N=9990
 
 AUTHOR_EMAILS = {
     # "First Last": "asurite@asu.edu",
@@ -146,7 +145,6 @@ function pillCls(v) { return v>=65?'score-high':v>=40?'score-mid':'score-low'; }
 function bar(val,c) {
   return '<div class="bar-wrap"><div class="bar"><div class="bar-fill '+c+'" style="width:'+val+'%"></div></div><span class="bar-val">'+Math.round(val)+'</span></div>';
 }
-// Backward compat: old stories have 'discovery', new have 'returning'
 function getThird(r) { return r.returning ?? r.discovery ?? 50; }
 
 function buildScatter(rows) {
@@ -177,7 +175,6 @@ function showDetail(r) {
   const c=cls(r.composite);
   const mob=r.mob_pct||0, desk=r.desk_pct||0, tab=r.tab_pct||0;
   const third=getThird(r);
-  const thirdLabel='Retention (20%)';
   document.getElementById('rightPanel').innerHTML=
     '<div class="card">'+
       '<div class="story-section">'+r.section_norm+' &middot; '+(r.pub_date_display||r.pub_date)+'</div>'+
@@ -188,7 +185,7 @@ function showDetail(r) {
         '<div class="score-breakdown">'+
           '<div class="sb-row"><span class="sb-label" style="color:#3498db">Reach (30%)</span><div class="sb-bar"><div class="bar-fill bar-reach" style="width:'+r.reach+'%"></div></div><span class="sb-val">'+r.reach+'</span></div>'+
           '<div class="sb-row"><span class="sb-label" style="color:#9b59b6">Depth (50%)</span><div class="sb-bar"><div class="bar-fill bar-depth" style="width:'+r.depth+'%"></div></div><span class="sb-val">'+r.depth+'</span></div>'+
-          '<div class="sb-row"><span class="sb-label" style="color:#1abc9c">'+thirdLabel+'</span><div class="sb-bar"><div class="bar-fill bar-discovery" style="width:'+third+'%"></div></div><span class="sb-val">'+third+'</span></div>'+
+          '<div class="sb-row"><span class="sb-label" style="color:#1abc9c">Retention (20%)</span><div class="sb-bar"><div class="bar-fill bar-discovery" style="width:'+third+'%"></div></div><span class="sb-val">'+third+'</span></div>'+
         '</div>'+
       '</div>'+
     '</div>'+
@@ -207,10 +204,10 @@ function showDetail(r) {
     '<div class="card"><h2>Pillar Breakdown</h2><div class="chart-wrap"><canvas id="rc"></canvas></div></div>'+
     '<div class="card"><h2>Score Distribution (current view)</h2><div class="chart-wrap-sm"><canvas id="sc"></canvas></div></div>'+
     '<div class="card"><h2>Methodology</h2><p class="method-text">'+
-      'Each score is a <b>section-relative percentile</b> (0-100) vs. historical baseline.<br><br>'+
+      'Each score is a <b>section-relative percentile</b> (0-100) vs. historical baseline (Dec 2024–present, N=9,990).<br><br>'+
       '<b style="color:#3498db">Reach</b> — log(views) vs. section average<br>'+
       '<b style="color:#9b59b6">Depth</b> — Avg. Engaged Minutes vs. section average<br>'+
-      '<b style="color:#1abc9c">Retention</b> — % of audience that came back vs. section average<br><br>'+
+      '<b style="color:#1abc9c">Retention</b> — % returning visitors vs. section average<br><br>'+
       'Composite = Depth 50% + Reach 30% + Retention 20%'+
     '</p></div>';
   if(radarChart){radarChart.destroy();radarChart=null;}
@@ -438,7 +435,7 @@ def send_all_author_emails(scored):
   <tr><td style="padding:4px 12px 4px 0"><b>Views</b></td><td>{story['views']:,}</td></tr>
   <tr><td style="padding:4px 12px 4px 0"><b>Mobile / Desktop</b></td><td>{story['mob_pct']}% / {story['desk_pct']}%</td></tr>
 </table>
-<p style="margin-top:12px;color:#666;font-size:.9em">Scores are section-relative vs. <em>{story['section_norm']}</em> historical average.</p>"""
+<p style="margin-top:12px;color:#666;font-size:.9em">Scores are section-relative vs. <em>{story['section_norm']}</em> historical average (Dec 2024–present).</p>"""
         send_email(email,subject,body)
 
 def main():
