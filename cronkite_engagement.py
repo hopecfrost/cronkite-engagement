@@ -2,7 +2,7 @@
 Cronkite News Bureau — Weekly Engagement Scoring
 Weights: Depth 50%, Reach 30%, Retention 20%
 """
-import os, json, math, datetime, smtplib, csv
+import os, json, math, datetime, smtplib, csv, sys
 from email.mime.text import MIMEText
 from collections import Counter
 import requests
@@ -45,7 +45,6 @@ SECTION_BASELINES = {
 BUREAU_WIDE = {"log_views_mean":3.868346,"log_views_std":1.378027,"avg_min_mean":0.697029,"avg_min_std":0.573032,"ret_pct_mean":0.084345,"ret_pct_std":0.079605}
 
 def load_author_emails():
-    """Load name→email mapping from emails.csv (Name,Email columns)."""
     emails = {}
     if not os.path.exists(EMAILS_FILE):
         print(f"  No {EMAILS_FILE} found — skipping author emails")
@@ -147,6 +146,7 @@ def generate_dashboard(all_scores):
     rows_json=json.dumps(all_scores)
     default_json=json.dumps(default_week)
     total=f"{len(all_scores):,}"
+    last_updated=datetime.date.today().strftime("%B %-d, %Y")
 
     JS = """
 const ROWS    = """ + rows_json + """;
@@ -359,7 +359,7 @@ td.sc{{width:50px}}
   <div>
     <div class="bureau">Cronkite News Bureau</div>
     <div class="report-title">Audience Engagement Dashboard</div>
-    <div class="daterange">Section-relative scoring &middot; Depth 50% &middot; Reach 30% &middot; Retention 20% &middot; Score at Day 7</div>
+    <div class="daterange">cronkitenews.azpbs.org &middot; Last updated: {last_updated}</div>
   </div>
   <div style="display:flex;align-items:center;gap:16px">
     <div class="totals">
@@ -428,7 +428,6 @@ def send_email(to_addr, subject, body_html, dry_run=False):
     except Exception as e: print(f"  Email failed ({to_addr}): {e}")
 
 def send_all_author_emails(scored, author_emails, dry_run=False):
-    # Group stories by author
     by_author = {}
     for story in scored:
         author = story.get("author","")
@@ -490,7 +489,6 @@ def send_all_author_emails(scored, author_emails, dry_run=False):
         print("  No matching authors in emails.csv — no emails sent")
 
 def main():
-    import sys
     dry_run = "--dry-run" in sys.argv
 
     print("Fetching from Parse.ly…")
