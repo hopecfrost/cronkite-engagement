@@ -8,32 +8,29 @@ on:
 jobs:
   generate-report:
     runs-on: ubuntu-latest
-    steps:
-      - name: Check out repo
-        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install requests
+      - run: pip install requests
 
       - name: Run engagement script
         env:
-          PARSELY_KEY:     ${{ secrets.PARSELY_KEY }}
-          PARSELY_SECRET:  ${{ secrets.PARSELY_SECRET }}
-          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
-          SMTP_EMAIL:      ${{ secrets.SMTP_EMAIL }}
-          SMTP_PASSWORD:   ${{ secrets.SMTP_PASSWORD }}
+          PARSELY_KEY:    ${{ secrets.PARSELY_KEY }}
+          PARSELY_SECRET: ${{ secrets.PARSELY_SECRET }}
+          SMTP_EMAIL:     ${{ secrets.SMTP_EMAIL }}
+          SMTP_PASSWORD:  ${{ secrets.SMTP_PASSWORD }}
         run: python cronkite_engagement.py
 
       - name: Commit scores archive
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add scores.json youtube_scores.json youtube_baselines.json
+          git add scores.json
           git diff --staged --quiet || git commit -m "Update scores archive [$(date +%Y-%m-%d)]"
           git push origin main
 
