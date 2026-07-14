@@ -8,7 +8,6 @@ on:
 jobs:
   generate-report:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
@@ -28,6 +27,14 @@ jobs:
           SMTP_EMAIL:     ${{ secrets.SMTP_EMAIL }}
           SMTP_PASSWORD:  ${{ secrets.SMTP_PASSWORD }}
         run: python cronkite_engagement.py
+
+      - name: Commit scores archive
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add scores.json
+          git diff --staged --quiet || git commit -m "Update scores archive [$(date +%Y-%m-%d)]"
+          git push origin main
 
       - name: Prepare output folder
         run: |
