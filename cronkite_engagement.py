@@ -3,15 +3,16 @@
 Cronkite News Bureau — Engagement Scoring System
 -------------------------------------------------
 Scores stories published 7-14 days ago on three pillars:
-  Reach (30%)     — views vs. section historical baseline
-  Depth (50%)     — avg. engaged minutes vs. baseline  ← professor priority
-  Discovery (20%) — % traffic from search vs. baseline
+  Depth (50%)     — avg. engaged minutes vs. section baseline  ← professor priority
+  Reach (30%)     — views vs. section baseline
+  Discovery (20%) — % traffic from search vs. section baseline
 
+Results are appended to scores.json (cumulative archive).
+The dashboard displays ALL historically scored stories.
 Section baselines: Dec 2024–Jul 2026, N=9,483 stories.
-Each story z-scored against its own section's history → 0–100 percentile.
 """
 
-import os, math, datetime, smtplib, requests
+import os, math, json, datetime, smtplib, requests
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -21,7 +22,8 @@ PARSELY_SECRET = os.getenv("PARSELY_SECRET") or "tAytVAdJCyLdFHatqOOHLVXTrdHpUm5
 SMTP_EMAIL     = os.getenv("SMTP_EMAIL")     or ""
 SMTP_PASSWORD  = os.getenv("SMTP_PASSWORD")  or ""
 
-BASE_URL = "https://api.parsely.com/v2"
+BASE_URL    = "https://api.parsely.com/v2"
+SCORES_FILE = "scores.json"
 
 # ── Section name normalization ────────────────────────────────────────────────
 SECTION_MAP = {
@@ -158,6 +160,23 @@ def get_baselines(raw_section):
     sec = SECTION_MAP.get(raw_section.strip(), raw_section.strip())
     return SECTION_BASELINES.get(sec, BUREAU_WIDE), sec
 
+# ── Scores archive ────────────────────────────────────────────────────────────
+def load_scores():
+    """Load cumulative scores from scores.json. Returns dict keyed by URL."""
+    if not os.path.exists(SCORES_FILE):
+        return {}
+    with open(SCORES_FILE, encoding="utf-8") as f:
+        data = json.load(f)
+    return {entry["url"]: entry for entry in data}
+
+def save_scores(scores_by_url):
+    """Save all scores to scores.json, sorted newest first."""
+    entries = sorted(scores_by_url.values(),
+                     key=lambda x: x.get("week_scored", ""), reverse=True)
+    with open(SCORES_FILE, "w", encoding="utf-8") as f:
+        json.dump(entries, f, indent=2)
+    print(f"  Saved {len(entries)} total stories to {SCORES_FILE}")
+
 # ── Parse.ly API ──────────────────────────────────────────────────────────────
 def parsely_get(endpoint, extra_params=None):
     params = {"apikey": PARSELY_KEY, "secret": PARSELY_SECRET, "limit": 50}
@@ -168,11 +187,7 @@ def parsely_get(endpoint, extra_params=None):
     return r.json().get("data", [])
 
 def get_posts():
-    """
-    Fetch stories published 7–14 days ago so every story has had at least
-    a full week to accumulate traffic before being scored.
-    Makes 5 API calls to collect all metrics, joined by URL.
-    """
+    """Fetch stories published 7–14 days ago (scored after a full week)."""
     now       = datetime.datetime.utcnow()
     week_ago  = now - datetime.timedelta(days=7)
     two_weeks = now - datetime.timedelta(days=14)
@@ -185,7 +200,6 @@ def get_posts():
     }
 
     merged = {}
-
     for sort_key in ["views", "avg_engaged", "search_refs", "mobile_views", "desktop_views"]:
         try:
             data = parsely_get("/analytics/posts", {**date_params, "sort": sort_key})
@@ -235,7 +249,6 @@ def get_posts():
     return posts
 
 def _fmt_date(raw):
-    """Format pub_date string for display."""
     try:
         dt = datetime.datetime.fromisoformat(raw.replace("Z", ""))
         return dt.strftime("%b %-d, %Y")
@@ -249,51 +262,53 @@ def score_articles(posts):
     depth_label = "Recirculation (fallback)" if use_recirc else "Avg. Engaged Minutes"
 
     if use_recirc:
-        print("  Note: avg_engaged unavailable — falling back to recirculation rate for Depth")
+        print("  Note: avg_engaged unavailable — falling back to recirculation rate")
 
+    week_scored = datetime.date.today().strftime("%Y-%m-%d")
     scored = []
+
     for post in posts:
         baselines, section_norm = get_baselines(post["section"])
         views = max(post["views"], 1)
 
-        # Reach (30%)
         reach = z_to_pct(math.log(views + 1),
                           baselines["log_views_mean"], baselines["log_views_std"])
 
-        # Depth (50%) — professor priority
         if use_recirc or post["avg_engaged"] == 0:
             depth = round(min(post["recirculation_rate"] / 0.10, 1.0) * 100, 1)
         else:
             depth = z_to_pct(post["avg_engaged"],
                               baselines["avg_min_mean"], baselines["avg_min_std"])
 
-        # Discovery (20%)
         search_pct = post["search_refs"] / views
         discovery  = z_to_pct(search_pct,
                                baselines["search_pct_mean"], baselines["search_pct_std"])
 
-        # Weighted composite: Depth 50%, Reach 30%, Discovery 20%
         composite = round(reach * 0.30 + depth * 0.50 + discovery * 0.20, 1)
 
-        # Device breakdown
         mob  = post["mobile_views"]
         desk = post["desktop_views"]
-        tab  = max(0, views - mob - desk)
         mob_pct  = round(mob  / views * 100, 1)
         desk_pct = round(desk / views * 100, 1)
         tab_pct  = round(max(0.0, 100 - mob_pct - desk_pct), 1)
 
         scored.append({
-            **post,
-            "section_norm": section_norm,
-            "reach":        reach,
-            "depth":        depth,
-            "discovery":    discovery,
-            "composite":    composite,
-            "depth_label":  depth_label,
-            "mob_pct":      mob_pct,
-            "desk_pct":     desk_pct,
-            "tab_pct":      tab_pct,
+            "url":             post["url"],
+            "title":           post["title"],
+            "author":          post["author"],
+            "section_norm":    section_norm,
+            "pub_date":        post["pub_date"],
+            "pub_date_display":post["pub_date_display"],
+            "week_scored":     week_scored,
+            "views":           post["views"],
+            "reach":           reach,
+            "depth":           depth,
+            "discovery":       discovery,
+            "composite":       composite,
+            "depth_label":     depth_label,
+            "mob_pct":         mob_pct,
+            "desk_pct":        desk_pct,
+            "tab_pct":         tab_pct,
         })
 
     scored.sort(key=lambda x: x["composite"], reverse=True)
@@ -307,23 +322,17 @@ def print_report(scored):
     print(f"{'='*85}")
     print(f"  Scoring: Depth 50% | Reach 30% | Discovery 20%")
     print(f"  Section-relative percentiles  |  Stories scored after 7+ days")
-    print(f"  Baselines: Dec 2024–Jul 2026  |  N=9,483 stories")
     print(f"{'='*85}\n")
-
     fmt = "{:>3}. {:<40} {:>7} {:>7} {:>7} {:>7} {:>8}  {}"
     print(fmt.format("#", "Title", "Views", "Reach", "Depth", "Discov", "SCORE", "Section"))
     print("-" * 100)
     for i, p in enumerate(scored[:20], 1):
         print(fmt.format(
-            i, p["title"][:40],
-            f"{p['views']:,}",
-            f"{p['reach']:.0f}",
-            f"{p['depth']:.0f}",
-            f"{p['discovery']:.0f}",
-            f"{p['composite']:.1f}",
+            i, p["title"][:40], f"{p['views']:,}",
+            f"{p['reach']:.0f}", f"{p['depth']:.0f}",
+            f"{p['discovery']:.0f}", f"{p['composite']:.1f}",
             p["section_norm"],
         ))
-
     if scored:
         print(f"\n  Depth metric: {scored[0]['depth_label']}")
 
@@ -357,7 +366,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     border-radius: 99px; text-transform: uppercase; letter-spacing: 0.05em;
   }}
 
-  /* Filter bar */
   .filter-bar {{
     display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
     padding: 12px 16px; background: var(--card);
@@ -418,7 +426,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .bar-val {{ font-size: 0.72rem; color: var(--muted); width: 24px; text-align: right; }}
 
   .side-panel {{ display: flex; flex-direction: column; gap: 14px; }}
-  .chart-wrap {{ position: relative; height: 240px; }}
+  .chart-wrap    {{ position: relative; height: 240px; }}
   .chart-wrap-sm {{ position: relative; height: 180px; }}
 
   .pill-legend {{ display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }}
@@ -435,14 +443,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   }}
   .selected-meta {{ font-size: 0.73rem; color: var(--muted); margin-bottom: 10px; }}
 
-  .device-legend {{ display: flex; gap: 14px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }}
+  .device-legend {{
+    display: flex; gap: 14px; justify-content: center;
+    margin-top: 8px; flex-wrap: wrap;
+  }}
   .device-legend span {{ font-size: 0.72rem; display: flex; align-items: center; gap: 5px; }}
   .dot {{ width: 8px; height: 8px; border-radius: 50%; display: inline-block; }}
 
-  footer {{
-    text-align: center; padding: 16px;
-    font-size: 0.7rem; color: var(--muted);
-  }}
+  footer {{ text-align: center; padding: 16px; font-size: 0.7rem; color: var(--muted); }}
 </style>
 </head>
 <body>
@@ -450,15 +458,19 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <header>
   <div>
     <h1>Cronkite News — Engagement Report</h1>
-    <div class="meta">Stories from the week of {report_date} &nbsp;|&nbsp; scored after 7+ days &nbsp;|&nbsp; {n_posts} stories</div>
+    <div class="meta" id="header-meta">Generated {report_date} &nbsp;|&nbsp; {n_total} stories in archive</div>
   </div>
   <span class="badge">Auto-generated</span>
 </header>
 
-<!-- Filter bar -->
 <div class="filter-bar">
   <span class="filter-label">Search:</span>
-  <input type="text" id="search" placeholder="Search by title or author…">
+  <input type="text" id="search" placeholder="Title or author…">
+
+  <span class="filter-label">Week:</span>
+  <select id="filter-week">
+    <option value="all">All time</option>
+  </select>
 
   <span class="filter-label">Section:</span>
   <select id="filter-section">
@@ -472,36 +484,26 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <option value="40">40+ (Mid)</option>
   </select>
 
-  <span class="filter-label">Published:</span>
-  <select id="filter-date">
-    <option value="all">All</option>
-    <option value="7">7 days ago</option>
-    <option value="8">8 days ago</option>
-    <option value="9">9 days ago</option>
-    <option value="10">10 days ago</option>
-    <option value="11">11–14 days ago</option>
-  </select>
-
   <span id="result-count"></span>
 </div>
 
 <div class="layout">
 
-  <!-- Left: ranked table -->
   <div class="card">
     <h2>Story Rankings</h2>
     <div class="pill-legend">
-      <span class="leg-reach">Reach 30%</span>
       <span class="leg-depth">Depth 50%</span>
+      <span class="leg-reach">Reach 30%</span>
       <span class="leg-discovery">Discovery 20%</span>
     </div>
     <table>
       <thead>
         <tr>
-          <th data-col="rank">#</th>
+          <th>#</th>
           <th data-col="title">Story</th>
           <th data-col="section_norm">Section</th>
           <th data-col="pub_date_display">Published</th>
+          <th data-col="week_scored">Week Scored</th>
           <th data-col="views">Views</th>
           <th data-col="reach">Reach</th>
           <th data-col="depth">Depth</th>
@@ -513,10 +515,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     </table>
   </div>
 
-  <!-- Right: side panel -->
   <div class="side-panel">
 
-    <!-- Radar -->
     <div class="card">
       <h2>Pillar Breakdown</h2>
       <div class="selected-title" id="sel-title">Click a story to inspect</div>
@@ -526,7 +526,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Device breakdown -->
     <div class="card">
       <h2>Device Breakdown</h2>
       <div class="chart-wrap-sm">
@@ -539,7 +538,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Scatter -->
     <div class="card">
       <h2>Score Distribution (Reach vs. Depth)</h2>
       <div class="chart-wrap-sm">
@@ -547,11 +545,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Methodology -->
-    <div class="card" style="font-size:0.73rem; color:var(--muted); line-height:1.65;">
+    <div class="card" style="font-size:0.73rem;color:var(--muted);line-height:1.65;">
       <h2>Methodology</h2>
       Each score is a <strong style="color:var(--text)">section-relative percentile</strong> (0–100)
-      vs. the section's Dec 2024–Jul 2026 baseline (N=9,483 stories).<br><br>
+      vs. the section's Dec 2024–Jul 2026 baseline (N=9,483).<br><br>
       <strong style="color:#9b59b6">Depth 50%</strong> — avg. engaged minutes<br>
       <strong style="color:#3498db">Reach 30%</strong> — log(views)<br>
       <strong style="color:#1abc9c">Discovery 20%</strong> — % traffic from search<br><br>
@@ -566,7 +563,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script>
 const posts = {posts_json};
 
-// ── Helpers ──
 function scoreClass(s) {{
   return s >= 65 ? 'score-high' : s >= 40 ? 'score-mid' : 'score-low';
 }}
@@ -579,20 +575,18 @@ const tbody = document.getElementById('tbody');
 posts.forEach((p, i) => {{
   const tr = document.createElement('tr');
   tr.dataset.idx = i;
-  tr.dataset.section = p.section_norm;
-  tr.dataset.composite = p.composite;
-  tr.dataset.pub = p.pub_date ? p.pub_date.slice(0,10) : '';
   tr.innerHTML = `
     <td style="color:var(--muted);font-size:0.72rem">${{i+1}}</td>
     <td>
       <a href="${{p.url}}" target="_blank"
          style="color:#fff;text-decoration:none;font-size:0.81rem;display:block"
          onclick="event.stopPropagation()"
-      >${{p.title.length>52 ? p.title.slice(0,52)+'…' : p.title}}</a>
+      >${{p.title.length>52?p.title.slice(0,52)+'…':p.title}}</a>
       <span style="font-size:0.7rem;color:var(--muted)">${{p.author}}</span>
     </td>
     <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${{p.section_norm}}</td>
     <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${{p.pub_date_display}}</td>
+    <td style="color:var(--muted);font-size:0.72rem;white-space:nowrap">${{p.week_scored}}</td>
     <td style="color:var(--muted);font-size:0.76rem">${{p.views.toLocaleString()}}</td>
     <td>${{bar(p.reach,'bar-reach')}}</td>
     <td>${{bar(p.depth,'bar-depth')}}</td>
@@ -603,8 +597,18 @@ posts.forEach((p, i) => {{
   tbody.appendChild(tr);
 }});
 
-// ── Populate section dropdown ──
+// ── Populate dropdowns from data ──
+const weeks    = [...new Set(posts.map(p => p.week_scored))].sort().reverse();
 const sections = [...new Set(posts.map(p => p.section_norm))].sort();
+
+const weekSel = document.getElementById('filter-week');
+weeks.forEach(w => {{
+  const o = document.createElement('option');
+  o.value = w;
+  o.textContent = `Week of ${{w}}`;
+  weekSel.appendChild(o);
+}});
+
 const secSel = document.getElementById('filter-section');
 sections.forEach(s => {{
   const o = document.createElement('option');
@@ -614,114 +618,99 @@ sections.forEach(s => {{
 
 // ── Filters ──
 function applyFilters() {{
-  const q    = document.getElementById('search').value.toLowerCase();
-  const sec  = document.getElementById('filter-section').value;
-  const minS = parseFloat(document.getElementById('filter-score').value) || 0;
-  const dateF= document.getElementById('filter-date').value;
+  const q     = document.getElementById('search').value.toLowerCase();
+  const week  = document.getElementById('filter-week').value;
+  const sec   = document.getElementById('filter-section').value;
+  const minS  = parseFloat(document.getElementById('filter-score').value) || 0;
 
-  const now = new Date();
-  let visible = 0;
-
+  let visible = 0, rank = 0;
   document.querySelectorAll('#tbody tr').forEach(tr => {{
-    const idx = parseInt(tr.dataset.idx);
-    const p   = posts[idx];
-    const matchQ   = !q || p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q);
-    const matchSec = !sec || p.section_norm === sec;
-    const matchS   = p.composite >= minS;
-
-    let matchDate = true;
-    if (dateF !== 'all' && p.pub_date) {{
-      const pub  = new Date(p.pub_date);
-      const days = Math.round((now - pub) / 86400000);
-      if (dateF === '11') matchDate = days >= 11;
-      else matchDate = days === parseInt(dateF);
-    }}
-
-    const show = matchQ && matchSec && matchS && matchDate;
+    const p = posts[parseInt(tr.dataset.idx)];
+    const show =
+      (!q    || p.title.toLowerCase().includes(q) || p.author.toLowerCase().includes(q)) &&
+      (!week || week === 'all' || p.week_scored === week) &&
+      (!sec  || p.section_norm === sec) &&
+      (p.composite >= minS);
     tr.classList.toggle('hidden', !show);
-    if (show) visible++;
+    if (show) {{
+      visible++;
+      tr.querySelector('td:first-child').textContent = ++rank;
+    }}
   }});
-
-  document.getElementById('result-count').textContent = `${{visible}} of ${{posts.length}} stories`;
+  document.getElementById('result-count').textContent =
+    `${{visible}} of ${{posts.length}} stories`;
 }}
 
-document.getElementById('search').addEventListener('input', applyFilters);
-document.getElementById('filter-section').addEventListener('change', applyFilters);
-document.getElementById('filter-score').addEventListener('change', applyFilters);
-document.getElementById('filter-date').addEventListener('change', applyFilters);
+['search','filter-week','filter-section','filter-score'].forEach(id =>
+  document.getElementById(id).addEventListener(id === 'search' ? 'input' : 'change', applyFilters)
+);
 applyFilters();
 
-// ── Radar chart ──
+// ── Charts ──
 const radarCtx = document.getElementById('radarChart').getContext('2d');
 const radarChart = new Chart(radarCtx, {{
   type: 'radar',
   data: {{
     labels: ['Reach (30%)','Depth (50%)','Discovery (20%)'],
-    datasets: [{{ label: 'Score', data: [0,0,0],
-      backgroundColor: 'rgba(255,198,39,0.15)',
-      borderColor: '#FFC627', pointBackgroundColor: '#FFC627', borderWidth: 2
+    datasets: [{{ label:'Score', data:[0,0,0],
+      backgroundColor:'rgba(255,198,39,0.15)',
+      borderColor:'#FFC627', pointBackgroundColor:'#FFC627', borderWidth:2
     }}]
   }},
   options: {{
-    responsive: true, maintainAspectRatio: false,
-    scales: {{ r: {{ min:0, max:100,
-      ticks: {{ stepSize:25, color:'#888', font:{{size:9}} }},
-      grid: {{ color:'rgba(255,255,255,0.07)' }},
-      pointLabels: {{ color:'#ccc', font:{{size:11}} }},
-      angleLines: {{ color:'rgba(255,255,255,0.07)' }},
+    responsive:true, maintainAspectRatio:false,
+    scales:{{ r:{{ min:0, max:100,
+      ticks:{{stepSize:25,color:'#888',font:{{size:9}}}},
+      grid:{{color:'rgba(255,255,255,0.07)'}},
+      pointLabels:{{color:'#ccc',font:{{size:11}}}},
+      angleLines:{{color:'rgba(255,255,255,0.07)'}},
     }} }},
-    plugins: {{ legend: {{ display:false }} }},
+    plugins:{{legend:{{display:false}}}},
   }}
 }});
 
-// ── Device donut chart ──
 const deviceCtx = document.getElementById('deviceChart').getContext('2d');
 const deviceChart = new Chart(deviceCtx, {{
   type: 'doughnut',
   data: {{
     labels: ['Desktop','Mobile','Tablet'],
-    datasets: [{{ data: [0,0,0],
-      backgroundColor: ['#3498db','#FFC627','#9b59b6'],
-      borderColor: 'var(--card)', borderWidth: 2,
+    datasets: [{{ data:[0,0,0],
+      backgroundColor:['#3498db','#FFC627','#9b59b6'],
+      borderColor:'var(--card)', borderWidth:2,
     }}]
   }},
   options: {{
-    responsive: true, maintainAspectRatio: false,
-    cutout: '65%',
-    plugins: {{
-      legend: {{ display: false }},
-      tooltip: {{ callbacks: {{ label: ctx => ` ${{ctx.label}}: ${{ctx.parsed.toFixed(1)}}%` }} }},
+    responsive:true, maintainAspectRatio:false, cutout:'65%',
+    plugins:{{
+      legend:{{display:false}},
+      tooltip:{{callbacks:{{label: ctx => ` ${{ctx.label}}: ${{ctx.parsed.toFixed(1)}}%`}}}},
     }},
   }}
 }});
 
-// ── Scatter chart ──
 const scatterCtx = document.getElementById('scatterChart').getContext('2d');
 new Chart(scatterCtx, {{
-  type: 'scatter',
-  data: {{ datasets: [{{ label: 'Stories',
-    data: posts.map(p => ({{ x: p.reach, y: p.depth, post: p }})),
+  type:'scatter',
+  data:{{ datasets:[{{ label:'Stories',
+    data: posts.map(p => ({{x:p.reach, y:p.depth, post:p}})),
     backgroundColor: posts.map(p =>
       p.composite>=65?'rgba(46,204,113,0.75)':
       p.composite>=40?'rgba(255,198,39,0.75)':'rgba(231,76,60,0.75)'),
-    pointRadius: 5,
+    pointRadius:4,
   }}] }},
-  options: {{
-    responsive: true, maintainAspectRatio: false,
-    scales: {{
-      x: {{ min:0, max:100, title:{{display:true,text:'Reach',color:'#3498db',font:{{size:10}}}},
-             grid:{{color:'rgba(255,255,255,0.04)'}}, ticks:{{color:'#888',font:{{size:9}}}} }},
-      y: {{ min:0, max:100, title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:10}}}},
-             grid:{{color:'rgba(255,255,255,0.04)'}}, ticks:{{color:'#888',font:{{size:9}}}} }},
+  options:{{
+    responsive:true, maintainAspectRatio:false,
+    scales:{{
+      x:{{min:0,max:100,title:{{display:true,text:'Reach',color:'#3498db',font:{{size:10}}}},
+           grid:{{color:'rgba(255,255,255,0.04)'}},ticks:{{color:'#888',font:{{size:9}}}}}},
+      y:{{min:0,max:100,title:{{display:true,text:'Depth',color:'#9b59b6',font:{{size:10}}}},
+           grid:{{color:'rgba(255,255,255,0.04)'}},ticks:{{color:'#888',font:{{size:9}}}}}},
     }},
-    plugins: {{
-      legend:{{display:false}},
-      tooltip:{{ callbacks:{{ label: ctx => ctx.raw.post.title.slice(0,38) }} }},
-    }},
+    plugins:{{legend:{{display:false}},tooltip:{{callbacks:{{label:ctx=>ctx.raw.post.title.slice(0,38)}}}}}},
   }}
 }});
 
-// ── Story selection ──
+// ── Selection ──
 let activeRow = null;
 function selectPost(idx) {{
   if (activeRow !== null) {{
@@ -731,24 +720,20 @@ function selectPost(idx) {{
   activeRow = idx;
   const tr = document.querySelector(`tr[data-idx="${{idx}}"]`);
   if (tr) tr.classList.add('active');
-
   const p = posts[idx];
   document.getElementById('sel-title').textContent = p.title;
   document.getElementById('sel-meta').textContent =
     `${{p.section_norm}} · ${{p.pub_date_display}} · ${{p.views.toLocaleString()}} views · ${{p.author}}`;
-
   radarChart.data.datasets[0].data = [p.reach, p.depth, p.discovery];
   radarChart.update();
-
   deviceChart.data.datasets[0].data = [p.desk_pct, p.mob_pct, p.tab_pct];
   deviceChart.update();
 }}
-
 if (posts.length > 0) selectPost(0);
 
 // ── Column sort ──
 let sortCol = 'composite', sortDir = -1;
-document.querySelectorAll('th').forEach(th => {{
+document.querySelectorAll('th[data-col]').forEach(th => {{
   th.addEventListener('click', () => {{
     const col = th.dataset.col;
     document.querySelectorAll('th').forEach(t => t.classList.remove('sorted'));
@@ -756,43 +741,32 @@ document.querySelectorAll('th').forEach(th => {{
     sortDir = sortCol === col ? -sortDir : -1;
     sortCol = col;
     const rows = [...document.querySelectorAll('#tbody tr')];
-    rows.sort((a, b) => {{
-      const ai = parseInt(a.dataset.idx), bi = parseInt(b.dataset.idx);
-      const av = posts[ai][col] ?? 0, bv = posts[bi][col] ?? 0;
+    rows.sort((a,b) => {{
+      const av = posts[parseInt(a.dataset.idx)][col] ?? '';
+      const bv = posts[parseInt(b.dataset.idx)][col] ?? '';
       return sortDir * (av < bv ? -1 : av > bv ? 1 : 0);
     }});
     rows.forEach(r => tbody.appendChild(r));
+    applyFilters();
   }});
 }});
 </script>
 </body>
 </html>"""
 
-def generate_dashboard(scored):
-    import json
-    today = datetime.date.today().strftime("%Y-%m-%d")
-    fname = f"cronkite_report_{today}.html"
+def generate_dashboard(all_scores):
+    import json as _json
+    today     = datetime.date.today().strftime("%Y-%m-%d")
+    fname     = f"cronkite_report_{today}.html"
+    n_total   = len(all_scores)
 
-    posts_json = json.dumps([{
-        "url":             p["url"],
-        "title":           p["title"],
-        "author":          p["author"],
-        "section_norm":    p["section_norm"],
-        "pub_date":        p["pub_date"],
-        "pub_date_display":p["pub_date_display"],
-        "views":           p["views"],
-        "reach":           p["reach"],
-        "depth":           p["depth"],
-        "discovery":       p["discovery"],
-        "composite":       p["composite"],
-        "mob_pct":         p["mob_pct"],
-        "desk_pct":        p["desk_pct"],
-        "tab_pct":         p["tab_pct"],
-    } for p in scored], indent=2)
+    # Sort by composite descending for the initial table view
+    display   = sorted(all_scores, key=lambda x: x["composite"], reverse=True)
+    posts_json = _json.dumps(display, indent=2)
 
-    depth_label = scored[0]["depth_label"] if scored else "Avg. Engaged Minutes"
+    depth_label = display[0]["depth_label"] if display else "Avg. Engaged Minutes"
     html = HTML_TEMPLATE.format(
-        report_date=today, n_posts=len(scored),
+        report_date=today, n_total=n_total,
         posts_json=posts_json, depth_label=depth_label,
     )
 
@@ -815,10 +789,10 @@ ENGAGEMENT SCORE: {composite}/100  (vs. {section_norm} section historical averag
 
   Depth      {depth}/100  (50%) — avg. time readers spent on your story
   Reach      {reach}/100  (30%) — how many readers found it
-  Discovery  {discovery}/100  (20%) — % of traffic that came from search
+  Discovery  {discovery}/100  (20%) — % of traffic from search
 
-A score of 50 means exactly average for {section_norm}. A 70 means you
-outperformed 70% of {section_norm} stories published Dec 2024–Jul 2026.
+A score of 50 means exactly average for {section_norm}.
+A 70 means you outperformed 70% of {section_norm} stories (Dec 2024–Jul 2026 baseline).
 
 Keep up the great work,
 Cronkite Audience Engagement Team
@@ -868,15 +842,33 @@ def main():
     print("\nFetching posts from Parse.ly (stories published 7–14 days ago)...")
     posts = get_posts()
     if not posts:
-        print("No posts found.")
+        print("No posts found for this window.")
         return
+
     print(f"\nScoring {len(posts)} articles...")
-    scored = score_articles(posts)
-    print_report(scored)
+    new_scored = score_articles(posts)
+
+    print("\nUpdating scores archive...")
+    archive = load_scores()
+    new_count = 0
+    for story in new_scored:
+        if story["url"] not in archive:
+            archive[story["url"]] = story
+            new_count += 1
+        else:
+            print(f"  Skipping (already scored): {story['title'][:50]}")
+    print(f"  {new_count} new stories added to archive")
+    save_scores(archive)
+
+    all_scores = list(archive.values())
+    print_report(sorted(new_scored, key=lambda x: x["composite"], reverse=True))
+
     print("\nGenerating dashboard...")
-    generate_dashboard(scored)
+    generate_dashboard(all_scores)
+
     print("\nSending author emails...")
-    send_all_author_emails(scored)
+    send_all_author_emails(new_scored)
+
     print("\nDone.")
 
 if __name__ == "__main__":
