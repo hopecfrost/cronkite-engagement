@@ -252,12 +252,15 @@ function render() {
   }
   body.innerHTML=filtered.map((r,i)=>
     '<tr data-url="'+r.url+'" onclick="showDetail(filtered['+i+'])" class="'+(r.url===selectedUrl?'selected':'')+'">'+
-    '<td class="rk">'+(i+1)+'</td><td class="ttl">'+r.title+'</td><td class="sec">'+r.section_norm+'</td>'+
+    '<td class="rk">'+(i+1)+'</td>'+
+    '<td class="ttl">'+r.title+'</td>'+
+    '<td class="sec">'+r.section_norm+'</td>'+
+    '<td class="sc"><span class="score-pill '+pillCls(r.composite)+'">'+r.composite+'</span></td>'+
     '<td class="vw">'+(r.views||0).toLocaleString()+'</td>'+
     '<td class="bar-cell">'+bar(r.reach,'bar-reach')+'</td>'+
     '<td class="bar-cell">'+bar(r.depth,'bar-depth')+'</td>'+
     '<td class="bar-cell">'+bar(getThird(r),'bar-discovery')+'</td>'+
-    '<td class="sc"><span class="score-pill '+pillCls(r.composite)+'">'+r.composite+'</span></td></tr>'
+    '</tr>'
   ).join('');
   if(!selectedUrl||!filtered.find(r=>r.url===selectedUrl)) showDetail(filtered[0]);
   else buildScatter(filtered);
@@ -311,9 +314,9 @@ td{{padding:7px 10px;font-size:12px;color:#414141;border:none;border-bottom:1px 
 td.rk{{color:#58595b;font-size:11px;width:28px;padding-right:4px}}
 td.ttl{{max-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 td.sec{{color:#58595b;font-size:11px;width:100px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100px}}
+td.sc{{width:60px}}
 td.vw{{font-size:11px;color:#58595b;width:56px;text-align:right}}
 td.bar-cell{{width:80px}}
-td.sc{{width:50px}}
 .bar-wrap{{display:flex;align-items:center;gap:4px}}
 .bar{{height:5px;border-radius:3px;background:#e8eaf0;flex:1;overflow:hidden}}
 .bar-fill{{height:100%;border-radius:3px}}
@@ -393,10 +396,14 @@ td.sc{{width:50px}}
     </div>
     <table>
       <thead><tr>
-        <th class="rk">#</th><th class="ttl">Story</th><th class="sec">Section</th>
-        <th class="vw" data-col="views">Views</th>
-        <th class="bar-cell">Reach</th><th class="bar-cell">Depth</th><th class="bar-cell">Retention</th>
+        <th class="rk">#</th>
+        <th class="ttl">Story</th>
+        <th class="sec">Section</th>
         <th class="sc" data-col="composite">Score</th>
+        <th class="vw" data-col="views">Views</th>
+        <th class="bar-cell">Reach</th>
+        <th class="bar-cell">Depth</th>
+        <th class="bar-cell">Retention</th>
       </tr></thead>
       <tbody id="body"></tbody>
     </table>
