@@ -152,7 +152,7 @@ def generate_dashboard(all_scores):
 const ROWS    = """ + rows_json + """;
 const DEFAULT = """ + default_json + """;
 
-let filtered=[], selectedUrl=null, radarChart=null, scatterChart=null;
+let filtered=[], selectedUrl=null, radarChart=null, scatterChart=null, currentStory=null;
 
 function cls(v)     { return v>=65?'high':v>=40?'mid':'low'; }
 function pillCls(v) { return v>=65?'score-high':v>=40?'score-mid':'score-low'; }
@@ -177,6 +177,7 @@ function buildScatter(rows) {
 }
 
 function showDetail(r) {
+  currentStory=r;
   selectedUrl=r.url;
   document.querySelectorAll('#body tr').forEach(t=>t.classList.remove('selected'));
   const row=document.querySelector('#body tr[data-url="'+CSS.escape(r.url)+'"]');
@@ -218,7 +219,12 @@ function showDetail(r) {
       '<b style="color:#9b59b6">Depth</b> — Avg. Engaged Minutes vs. section avg<br>'+
       '<b style="color:#1abc9c">Retention</b> — % returning visitors vs. section avg<br><br>'+
       'Composite = Depth 50% + Reach 30% + Retention 20%'+
-    '</p></div>';
+    '</p></div>'+
+    '<div class="card">'+
+      '<h2>✨ AI Feedback</h2>'+
+      '<button id="ai-btn" onclick="getAIFeedback()" style="background:#005195;color:white;border:none;padding:8px 18px;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold">Get AI Feedback</button>'+
+      '<div id="ai-feedback-box" style="display:none;margin-top:12px;padding:12px 14px;background:#f5f6fa;border-left:3px solid #005195;border-radius:3px;font-size:13px;color:#414141;line-height:1.6"></div>'+
+    '</div>';
   if(radarChart){radarChart.destroy();radarChart=null;}
   radarChart=new Chart(document.getElementById('rc').getContext('2d'),{type:'radar',
     data:{labels:['Reach (30%)','Depth (50%)','Retention (20%)'],datasets:[{
@@ -229,6 +235,35 @@ function showDetail(r) {
       scales:{r:{min:0,max:100,ticks:{display:false},grid:{color:'#e2e3ea'},
         angleLines:{color:'#e2e3ea'},pointLabels:{color:'#58595b',font:{size:11}}}}}});
   buildScatter(filtered);
+}
+
+const GEMINI_KEY='AQ.Ab8RN6IM8gZGA6gFcGmre22MpRE22CE5815vWYPGRiF-EO-HwA';
+async function getAIFeedback() {
+  const r=currentStory;
+  if(!r) return;
+  const btn=document.getElementById('ai-btn');
+  const box=document.getElementById('ai-feedback-box');
+  btn.disabled=true;
+  btn.textContent='Thinking...';
+  box.style.display='block';
+  box.innerHTML='<em style="color:#888">Analyzing your story...</em>';
+  const third=getThird(r);
+  const low=r.reach<=r.depth&&r.reach<=third?'reach (how many people found the story)':
+             r.depth<=r.reach&&r.depth<=third?'depth (how long readers stayed)':
+             'retention (how many readers came back)';
+  const prompt=`You are an audience engagement coach at Cronkite News, ASU's student journalism bureau. Give 2-3 sentences of specific, actionable feedback to help the reporter improve engagement. Be encouraging but direct.\n\nStory: "${r.title}"\nSection: ${r.section_norm}\nScore: ${r.composite}/100\nReach: ${r.reach}/100 | Depth: ${r.depth}/100 | Retention: ${third}/100\nWeakest area: ${low}\n\nKeep it under 75 words.`;
+  try {
+    const res=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+GEMINI_KEY,
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+    const data=await res.json();
+    const text=data.candidates?.[0]?.content?.parts?.[0]?.text||'No feedback returned.';
+    box.innerHTML=text.replace(/\n/g,'<br>');
+  } catch(e) {
+    box.innerHTML='<span style="color:#c0392b">Error — check your connection and try again.</span>';
+  }
+  btn.disabled=false;
+  btn.textContent='Refresh Feedback';
 }
 
 function render() {
